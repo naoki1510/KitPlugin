@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # BlockEditor
 
 ## About this
@@ -30,3 +31,6 @@ WEditと違う点として、
 |//redo [TaskID] \([Options])|TaskIDで指定した作業を再度行います。|
 |//stop [TaskID]|TaskIDで指定した作業を取りやめます。|
 |//clear|Task等を消去してメモリを開放します。|
+=======
+# KitPlugin
+>>>>>>> 65f387f97c4ea8e71359c6c18fc72b6ffc714287

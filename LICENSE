@@ -1,7 +1,11 @@
                    GNU LESSER GENERAL PUBLIC LICENSE
                        Version 3, 29 June 2007
 
+<<<<<<< HEAD
  Copyright (C) 2007 Free Software Foundation, Inc. <http://fsf.org/>
+=======
+ Copyright (C) 2007 Free Software Foundation, Inc. <https://fsf.org/>
+>>>>>>> 65f387f97c4ea8e71359c6c18fc72b6ffc714287
  Everyone is permitted to copy and distribute verbatim copies
  of this license document, but changing it is not allowed.
 
