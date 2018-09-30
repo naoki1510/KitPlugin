@@ -1,5 +1,5 @@
 #Name of your plugin. This is self-explanatory. Plugin names SHOULD NOT contain spaces.
-name: kitPlugin
+name: KitPlugin
 #Fully-qualified class-name of your plugin's main class. This is usually the one that extends PluginBase.
 #Since PocketMine-MP's autoloader is PSR-0, your plugin's main-class namespace will usually be the same as the folder path.
 main: naoki1510\KitPlugin\Main
@@ -28,7 +28,7 @@ load: POSTWORLD
 author: naoki1510
 
 #Simple description of what the plugin is or does. Try to keep this short.
-description: A plugin which customs my server
+description: You can use battle kit to do pvp.
 
 #Website for your plugin. This could be a GitHub repository URL, a website of your own, or anything you like. This is optional.
 # website: https://github.com/pmmp/PocketMine-DevTools
