@@ -4,41 +4,41 @@ namespace naoki1510\KitPlugin;
 
 use pocketmine\Player;
 use pocketmine\Server;
-use pocketmine\item\Item;
-use pocketmine\tile\Sign;
 use pocketmine\block\Block;
-use pocketmine\utils\Config;
-use pocketmine\event\Listener;
 use pocketmine\command\Command;
-use pocketmine\event\Cancellable;
-use pocketmine\plugin\PluginBase;
 use pocketmine\command\CommandSender;
-use pocketmine\inventory\PlayerInventory;
+use pocketmine\event\Cancellable;
+use pocketmine\event\Listener;
 use pocketmine\event\player\PlayerInteractEvent;
+use pocketmine\event\player\PlayerMoveEvent;
+use pocketmine\inventory\PlayerInventory;
+use pocketmine\item\Elytra;
+use pocketmine\item\Item;
+use pocketmine\plugin\PluginBase;
+use pocketmine\tile\Sign;
+use pocketmine\utils\Config;
 
 class Main extends PluginBase implements Listener{
 
 	/** @var Config */
 	private $kit;
+	private $playerdata;
 
 	public function onEnable(){
 		// 起動時のメッセージ
 		$this->getLogger()->info("§eKitPlugin was loaded.");
 
 		// kit.yml作成
-		// Configは$this->getConfig()
-		if (!file_exists($this->getDataFolder())){
-			@mkdir($this->getDataFolder());
-
-			//ToDo: Resourseフォルダの活用
-			//$resourse = $this->getResource('kit.yml');
-			//file_put_contents($this->getDataFolder() . 'kit.yml', fread($resourse, );
-		} 
+		$this->saveResource('kit.yml');
 		$this->kit = new Config($this->getDataFolder() . 'kit.yml', Config::YAML);
-		$this->kit->save();
+
+		//PlayerData.yml作成
+		$this->playerdata = new Config($this->getDataFolder() . 'PlayerData.yml', Config::YAML);
 
 		// イベントリスナー登録
 		$this->getServer()->getPluginManager()->registerEvents($this, $this);
+
+		$this->saveDefaultConfig();
 	}
 
 	public function onTouch(PlayerInteractEvent $e){
@@ -61,32 +61,76 @@ class Main extends PluginBase implements Listener{
 
 		// 一行目がkit
 		if($sign instanceof Sign && $sign->getLine(0) === '[Kit]'){
-			$kit = $sign->getLine(1);
+			$kit = trim($sign->getLine(1));
+			
 
 			// Kit名が存在するか
-			if($this->kit->exists($kit) && isset($this->kit->get($kit)['Items'])){
-				$items = [];
+			if($this->kit->exists($kit)){
+				if($this->playerdata->get($player->getName()) == $kit) return ;
 
-				// kit.ymlからアイテムを取得
-				foreach ($this->kit->get($kit)['Items'] as $itemId => $amount) {
-					$item = Item::fromString($itemId)->setCount($amount);
-					if($item instanceof Item){
-						array_push($items, $item);
-					}
-				}
+				$this->setItems($player, $kit);
 
-				// Playerにアイテムをセット
-				$player->getInventory()->setContents($items);
 				$player->sendMessage('You are now ' . $kit);
+				$this->playerdata->set($player->getName(), $kit);
+				$this->playerdata->save();
 			}else{
 				$player->sendMessage('That kit was not found.');
 			}
+
 			if($e instanceof Cancellable){
-				
 				//ブロック配置の防止
 				$e->setCancelled(true);
 			}
 		}
 	
+	}
+
+	public function onMove(PlayerMoveEvent $e){
+		$player = $e->getPlayer();
+		$level = $player->getLevel();
+		$blockUnderPlayer = ($level->getBlock($player->subtract(0, 0.5))->getId() == 0) ? $level->getBlock($player->subtract(0, 1.5)) : $level->getBlock($player->subtract(0, 0.5));
+		if($blockUnderPlayer->getId() == Block::STAINED_GLASS && in_array($level->getName(), $this->getConfig()->get('worlds', []))){
+			$kit = $this->playerdata->get($player->getName());
+
+			$this->setItems($player, $kit);
+			$player->setHealth($player->getMaxHealth());
+			$player->setFood($player->getMaxFood());
+		}
+	}
+
+	public function setItems(Player $player, string $kit){
+		if ($this->kit->exists($kit)) {
+
+			try{
+				$items = [];
+				// kit.ymlからアイテムを取得
+				foreach ($this->kit->get($kit)['Items'] as $itemId => $amount) {
+					$item = Item::fromString($itemId);
+					if ($item instanceof Item) {
+						array_push($items, $item->setCount($amount));
+					}
+				}
+				$player->getInventory()->setContents($items);
+
+			}catch(\InvalidArgumentException $e){
+				$this->getLogger()->warning('Item name is invalid');
+				$this->getLogger()->warning($e->getMessage());
+			}
+
+			$armor = $player->getArmorInventory();
+
+			try{
+				$armor->setHelmet(Item::fromString($this->kit->getNested($kit . '.Armor.Helmet', 'Leather Helmet')));
+				$armor->setChestplate(Item::fromString($this->kit->getNested($kit . '.Armor.ChestPlate', 'Leather Chestplate')));
+				$armor->setLeggings(Item::fromString($this->kit->getNested($kit . '.Armor.Leggins', 'Leather Leggings')));
+				$armor->setBoots(Item::fromString($this->kit->getNested($kit . '.Armor.Boots', 'Leather Boots')));
+			}catch(\InvalidArgumentCountException $e){
+				$this->getLogger()->warning('Armor name is invalid');
+				$this->getLogger()->warning($e->getMessage());
+			}
+
+			$this->playerdata->set($player->getName(), $kit);
+			$this->playerdata->save();
+		}
 	}
 }
