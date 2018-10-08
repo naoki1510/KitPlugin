@@ -2,7 +2,7 @@
 name: KitPlugin
 #Fully-qualified class-name of your plugin's main class. This is usually the one that extends PluginBase.
 #Since PocketMine-MP's autoloader is PSR-0, your plugin's main-class namespace will usually be the same as the folder path.
-main: naoki1510\KitPlugin\Main
+main: naoki1510\kitplugin\KitPlugin
 
 #Version name/number of your plugin
 version: 0.0.1b
@@ -32,3 +32,9 @@ description: You can use battle kit to do pvp.
 
 #Website for your plugin. This could be a GitHub repository URL, a website of your own, or anything you like. This is optional.
 # website: https://github.com/pmmp/PocketMine-DevTools
+
+commands:
+  exp:
+    description:
+    usage:
+    permission: op

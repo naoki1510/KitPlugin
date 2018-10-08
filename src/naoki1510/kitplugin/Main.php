@@ -1,6 +1,6 @@
 <?php
 
-namespace naoki1510\KitPlugin;
+namespace naoki1510\kitplugin;
 
 use pocketmine\Player;
 use pocketmine\Server;
@@ -28,6 +28,7 @@ class Main extends PluginBase implements Listener{
 		// 起動時のメッセージ
 		$this->getLogger()->info("§eKitPlugin was loaded.");
 
+		$this->saveDefaultConfig();
 		// kit.yml作成
 		$this->saveResource('kit.yml');
 		$this->kit = new Config($this->getDataFolder() . 'kit.yml', Config::YAML);
@@ -38,7 +39,6 @@ class Main extends PluginBase implements Listener{
 		// イベントリスナー登録
 		$this->getServer()->getPluginManager()->registerEvents($this, $this);
 
-		$this->saveDefaultConfig();
 	}
 
 	public function onTouch(PlayerInteractEvent $e){
@@ -66,9 +66,10 @@ class Main extends PluginBase implements Listener{
 
 			// Kit名が存在するか
 			if($this->kit->exists($kit)){
-				if($this->playerdata->get($player->getName()) == $kit) return ;
-
+		
 				$this->setItems($player, $kit);
+
+				if($this->playerdata->get($player->getName()) == $kit) return ;
 
 				$player->sendMessage('You are now ' . $kit);
 				$this->playerdata->set($player->getName(), $kit);
@@ -93,9 +94,10 @@ class Main extends PluginBase implements Listener{
 			$kit = $this->playerdata->get($player->getName());
 
 			$this->setItems($player, $kit);
-			$player->setHealth($player->getMaxHealth());
-			$player->setFood($player->getMaxFood());
+			//$player->setHealth($player->getMaxHealth());
+			//$player->setFood($player->getMaxFood());
 		}
+		//var_dump($this->getConfig()->get('worlds', ['pvp']));
 	}
 
 	public function setItems(Player $player, string $kit){
