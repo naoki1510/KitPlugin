@@ -26,6 +26,10 @@ use pocketmine\nbt\tag\ListTag;
 use pocketmine\nbt\tag\ShortTag;
 use pocketmine\scheduler\TaskScheduler;
 use pocketmine\utils\Config;
+use pocketmine\event\player\PlayerEvent;
+use pocketmine\event\entity\EntityEvent;
+use pocketmine\event\player\PlayerItemUseEvent;
+use pocketmine\event\server\DataPacketReceiveEvent;
 
 class EventListener implements Listener
 {
@@ -59,6 +63,7 @@ class EventListener implements Listener
 
     public function onTouch(PlayerInteractEvent $e)
     {
+        //$this->getServer()->getLogger()->info($e->getEventName() . " was Called.");
 		//Playerなどイベント関連情報を取得
         $player = $e->getPlayer();
         $block = $e->getBlock();
@@ -92,6 +97,45 @@ class EventListener implements Listener
                 break;
         }
 
+    }
+    
+    public function onPlayerItemUse(PlayerItemUseEvent $e){
+        //$this->getServer()->getLogger()->info($e->getEventName() . " was Called.");
+        $player = $e->getPlayer();
+        /** @var Item $hand */
+        $hand = $player->getInventory()->getItemInHand();
+        switch ($hand->getId()) {
+            case Item::fromString('TNT')->getId():
+
+                $aimPos = $player->getDirectionVector();
+                $nbt = new CompoundTag("", [
+                    "Pos" => new ListTag("Pos", [
+                        new DoubleTag("", $player->x),
+                        new DoubleTag("", $player->y + $player->getEyeHeight()),
+                        new DoubleTag("", $player->z)
+                    ]),
+                    "Motion" => new ListTag("Motion", [
+                        new DoubleTag("", $aimPos->x),
+                        new DoubleTag("", $aimPos->y),
+                        new DoubleTag("", $aimPos->z)
+                    ]),
+                    "Rotation" => new ListTag("Rotation", [
+                        new FloatTag("", $player->yaw),
+                        new FloatTag("", $player->pitch)
+                    ]),
+                    "Fire" => new ShortTag("", 20)
+                ]);
+                $f = 1.2;
+                $entities = new PrimedTNT($player->getLevel(), $nbt);
+                $entities->setMotion($entities->getMotion()->multiply($f));
+                $player->getInventory()->setItemInHand($hand->setCount($hand->getCount() - 1));
+
+                break;
+
+            default:
+                # code...
+                break;
+        }
     }
 
     public function onPlayerAnimation(PlayerAnimationEvent $e)
@@ -135,6 +179,7 @@ class EventListener implements Listener
 
     public function onDamage(EntityDamageByEntityEvent $e)
     {
+        //$this->getServer()->getLogger()->info($e->getEventName() . " was Called.");
         $entity = $e->getEntity();
         if ($e->getCause() == EntityDamageEvent::CAUSE_ENTITY_EXPLOSION) {
             if ($e->getDamager() === $entity) {
@@ -151,6 +196,10 @@ class EventListener implements Listener
         }
     }
 
+    public function onPacketReceive(DataPacketReceiveEvent $e){
+        //$this->getServer()->getLogger()->info($e->getPacket()->getName() . " received.");
+    }
+
     public function onExplode(ExplosionPrimeEvent $e)
     {
         $e->setBlockBreaking(false);
@@ -160,10 +209,6 @@ class EventListener implements Listener
 
     public function onHitProjectile(ProjectileHitEvent $event)
     {
-        $e = $event->getEntity();
-        $pos = $e->add($e->lastMotionX / 4, $e->lastMotionY / 4, $e->lastMotionZ / 4);
-        $block = $e->level->getBlock($pos);
-        $block->getId();
     }
 
     public function onBreak(BlockBreakEvent $e)
