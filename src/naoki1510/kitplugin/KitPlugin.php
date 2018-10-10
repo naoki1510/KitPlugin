@@ -2,37 +2,12 @@
 
 namespace naoki1510\kitplugin;
 
+use naoki1510\kitplugin\KitPlugin;
 use naoki1510\kitplugin\tasks\BlockRecoveryTask;
-use pocketmine\Player;
-use pocketmine\Server;
-use pocketmine\block\Block;
-use pocketmine\command\Command;
-use pocketmine\command\CommandSender;
-use pocketmine\entity\Entity;
-use pocketmine\entity\object\PrimedTNT;
 use pocketmine\event\Listener;
-use pocketmine\event\block\BlockBreakEvent;
-use pocketmine\event\block\BlockPlaceEvent;
-use pocketmine\event\entity\EntityDamageByEntityEvent;
-use pocketmine\event\entity\EntityDamageEvent;
-use pocketmine\event\entity\EntityExplodeEvent;
-use pocketmine\event\entity\ExplosionPrimeEvent;
-use pocketmine\event\entity\ProjectileHitEvent;
-use pocketmine\event\player\PlayerAnimationEvent;
-use pocketmine\event\player\PlayerInteractEvent;
-use pocketmine\item\Item;
-use pocketmine\item\enchantment\Enchantment;
-use pocketmine\item\enchantment\EnchantmentInstance;
-use pocketmine\level\Explosion;
-use pocketmine\nbt\tag\ByteTag;
-use pocketmine\nbt\tag\CompoundTag;
-use pocketmine\nbt\tag\DoubleTag;
-use pocketmine\nbt\tag\FloatTag;
-use pocketmine\nbt\tag\ListTag;
-use pocketmine\nbt\tag\ShortTag;
-use pocketmine\nbt\tag\StringTag;
 use pocketmine\plugin\PluginBase;
 use pocketmine\utils\Config;
+use naoki1510\kitplugin\subweapons\Shield;
 
 
 class KitPlugin extends PluginBase implements Listener
@@ -54,8 +29,14 @@ class KitPlugin extends PluginBase implements Listener
         $this->gachalist = new Config($this->getDataFolder() . 'gacha.yml', Config::YAML);
 
 		// イベントリスナー登録
-        $this->getServer()->getPluginManager()->registerEvents($this, $this);
+        //$this->getServer()->getPluginManager()->registerEvents($this, $this);
         $this->getServer()->getPluginManager()->registerEvents(new \naoki1510\kitplugin\EventListener($this), $this);
+        $this->getServer()->getPluginManager()->registerEvents(new Shield(
+            $this->getScheduler(),
+            new Config(
+                $kitPlugin->getDataFolder() . 'pb.yml',
+                Config::YAML
+            )), $this);
 
     }
 
