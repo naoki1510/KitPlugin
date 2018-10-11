@@ -2,12 +2,12 @@
 
 namespace naoki1510\kitplugin\subweapons;
 
-use pocketmine\entity\projectile\Arrow;
+use pocketmine\entity\projectile\SnowBall;
 use pocketmine\event\Listener;
 use pocketmine\event\entity\ProjectileHitEntityEvent;
 use pocketmine\Player;
 
-class Bow implements Listener
+class SnowBall implements Listener
 {
     public function __construct()
     {
@@ -16,10 +16,15 @@ class Bow implements Listener
 
     public function onHit(ProjectileHitEntityEvent $e){
         $entity = $e->getEntity();
-        if ($entity instanceof Arrow) {
+        if ($entity instanceof SnowBall) {
             if (($shooter = $entity->getOwningEntity() instanceof Player) {
                 $distance = $e->getHitEntity()->distance($shooter);
-                $entity->setBaseDamage(4 + $distance / 8);
+                $damage = 6 - sqrt($distance + 4);
+                if ($damage <= 0) {
+                    $entity->setBaseDamage($damage);
+                }else {
+                    $e->setCancelled();
+                }
             }
         }
     }
