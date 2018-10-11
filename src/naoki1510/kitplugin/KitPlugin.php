@@ -199,7 +199,7 @@ class KitPlugin extends PluginBase implements Listener
             case Item::fromString('TNT')->getId():
             case Item::fromString('Stained Glass Pane')->getId():
             case Item::fromString('Splash Potion')->getId():
-                $this->inventories->setNested($player->getName() . '.game.sub', $item);
+                $this->inventories->setNested($player->getName() . '.game.sub', $item->setCount(1));
                 $player->sendMessage($item->getName() . ' がサブ武器に設定されました。');
             
             default:
