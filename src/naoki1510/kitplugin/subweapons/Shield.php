@@ -3,12 +3,13 @@
 namespace naoki1510\kitplugin\subweapons;
 
 use naoki1510\kitplugin\tasks\BlockRecoveryTask;
+use naoki1510\kitplugin\tasks\RestoreItemTask;
+use pocketmine\Server;
 use pocketmine\event\Listener;
 use pocketmine\event\block\BlockPlaceEvent;
 use pocketmine\item\Item;
 use pocketmine\scheduler\TaskScheduler;
 use pocketmine\utils\Config;
-use pocketmine\Server;
 
 class Shield implements Listener {
 
@@ -18,16 +19,21 @@ class Shield implements Listener {
     /** @var Config */
     private $overlapping;
 
-    public function __construct(TaskScheduler $scheduler, Config $overlapping)
+    /** @var string[] */
+    public $levels = [];
+
+    public function __construct(TaskScheduler $scheduler, Config $overlapping, array $levels)
     {
         $this->scheduler = $scheduler;
         $this->overlapping = $overlapping;
+        $this->levels = $levels;
     }
 
     public function onPlace(BlockPlaceEvent $e)
     {
         //Playerなどイベント関連情報を取得
         $player = $e->getPlayer();
+        if (!in_array($player->getLevel()->getName(), $this->levels)) return;
         $block = $e->getBlock();
         $id = $block->getId();
 
@@ -52,10 +58,19 @@ class Shield implements Listener {
                 }
             }
 
-            $this->sScheduler->scheduleDelayedTask(
+            $hand = $player->getInventory()->getItemInHand();
+            $player->getInventory()->setItemInHand($hand->setCount($hand->getCount() - 1));
+            $e->setCancelled();
+
+            $this->scheduler->scheduleDelayedTask(
                 new BlockRecoveryTask($changedPos, $player->getLevel(), $this->overlapping),
                 10 * 20
             );
+
+            $this->scheduler->scheduleDelayedTask(new RestoreItemTask(
+                $block->getItem(),
+                $player
+            ), 15 * 20);
         }
     }
 }
