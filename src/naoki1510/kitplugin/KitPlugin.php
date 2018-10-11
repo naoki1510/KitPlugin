@@ -21,6 +21,7 @@ use pocketmine\level\Explosion;
 use pocketmine\plugin\PluginBase;
 use pocketmine\utils\Config;
 use pocketmine\event\entity\ProjectileLaunchEvent;
+use pocketmine\event\player\PlayerRespawnEvent;
 
 
 class KitPlugin extends PluginBase implements Listener
@@ -230,5 +231,13 @@ class KitPlugin extends PluginBase implements Listener
 
     public function onLaunchProjectile(ProjectileLaunchEvent $e){
         if(in_array($e->getEntity()->getLevel()->getName(), $this->getConfig()->get('shopworlds', []))) $e->setCancelled();
+    }
+
+    public function onRespawn(PlayerRespawnEvent $e){
+        $player = $e->getPlayer();
+        if (in_array($player->getLevel()->getName(), $this->getConfig()->get('gameworlds', []))){
+            $items = $this->getSavedInventory($player->getName() . '.game');
+            $player->getInventory()->setContents($items);
+        }
     }
 }
