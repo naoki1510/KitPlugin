@@ -3,11 +3,14 @@
 namespace naoki1510\kitplugin;
 
 use naoki1510\kitplugin\KitPlugin;
+use naoki1510\kitplugin\subweapons\Shield;
 use naoki1510\kitplugin\tasks\BlockRecoveryTask;
+use pocketmine\command\Command;
+use pocketmine\command\CommandSender;
 use pocketmine\event\Listener;
+use pocketmine\level\Explosion;
 use pocketmine\plugin\PluginBase;
 use pocketmine\utils\Config;
-use naoki1510\kitplugin\subweapons\Shield;
 
 
 class KitPlugin extends PluginBase implements Listener
