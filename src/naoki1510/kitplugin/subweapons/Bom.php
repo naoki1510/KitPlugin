@@ -2,6 +2,7 @@
 
 namespace naoki1510\kitplugin\subweapons;
 
+use naoki1510\kitplugin\tasks\RestoreItemTask;
 use pocketmine\entity\object\PrimedTNT;
 use pocketmine\event\Listener;
 use pocketmine\event\entity\ExplosionPrimeEvent;
@@ -59,6 +60,11 @@ class Bom implements Listener
                 $entities->setMotion($entities->getMotion()->multiply($f));
                 $player->getInventory()->setItemInHand($hand->setCount($hand->getCount() - 1));
 
+                $this->scheduler->scheduleDelayedTask(new RestoreItemTask(
+                    Item::fromString('TNT'),
+                    $player
+                ), 45 * 20);
+
                 $e->setCancelled();
                 break;
         }
@@ -67,7 +73,7 @@ class Bom implements Listener
     public function onExplode(ExplosionPrimeEvent $e)
     {
         $e->setBlockBreaking(false);
-        $e->setForce(1.5);
+        $e->setForce(2.5);
         //$this->getLogger()->info($e->getEntity()->getDataPropertyManager()->getString(100));
     }
 }

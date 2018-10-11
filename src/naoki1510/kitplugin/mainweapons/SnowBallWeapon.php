@@ -50,7 +50,7 @@ class SnowBallWeapon implements Listener
         /** @var Item $hand */
         $hand = $player->getInventory()->getItemInHand();
         switch ($hand->getId()) {
-            case Item::fromString('Snow')->getId():
+            case Item::fromString('Snowball')->getId():
 
                 $item = Item::fromString('snowball')->setCount(48);
 
@@ -60,7 +60,7 @@ class SnowBallWeapon implements Listener
                         $count += $invitem->getCount();
                     }
                 }
-                if ($count < $item->getCount()) {
+                if ($count <= 4) {
                     if(empty($this->reloading[$player->getName()]) || $this->reloading[$player->getName()] < Server::getInstance()->getTick()){
                         $this->scheduler->scheduleDelayedTask(new RestoreItemTask(
                             $item,
@@ -70,13 +70,13 @@ class SnowBallWeapon implements Listener
                         $player->sendMessage('Reloading...');
                         $this->reloading[$player->getName()] = Server::getInstance()->getTick() + 20 * 4;
                     }
-                    var_dump($this->reloading[$player->getName()], Server::getInstance()->getTick());
+                    //var_dump($this->reloading[$player->getName()], Server::getInstance()->getTick());
                     
                 }else{
-                    $player->sendMessage('You don\'t have to reload');
+                    //$player->sendMessage('You don\'t have to reload');
                 }
 
-                $e->setCancelled();
+                //$e->setCancelled();
                 break;
         }
     }

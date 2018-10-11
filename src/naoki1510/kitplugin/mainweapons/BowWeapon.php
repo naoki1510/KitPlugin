@@ -53,7 +53,7 @@ class BowWeapon implements Listener
                         $count += $invitem->getCount();
                     }
                 }
-                if($count <= $item->getCount() && $this->reloading[$player->getName()] < Server::getInstance()->getTick() - 5 * 20){
+                if($count <= $item->getCount() && (empty($this->reloading[$player->getName()]) || ($this->reloading[$player->getName()]) < Server::getInstance()->getTick() - 5 * 20)){
                     $this->scheduler->scheduleDelayedTask(new RestoreItemTask(
                         $item,
                         $player
@@ -66,5 +66,9 @@ class BowWeapon implements Listener
                 $e->setCancelled();
                 break;
         }
+    }
+
+    public function reload($player){
+
     }
 }
