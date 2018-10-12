@@ -44,6 +44,7 @@ class KitPlugin extends PluginBase implements Listener
         $this->inventories = new Config($this->getDataFolder() . 'inventories.yml', Config::YAML);
 
 		// イベントリスナー登録
+		/** @todo foreachを使って配列にする */
         $this->getServer()->getPluginManager()->registerEvents($this, $this);
         $this->getServer()->getPluginManager()->registerEvents(new Bom($this->getScheduler(), $this->getConfig()->get('gameworlds', [])), $this);
         $this->getServer()->getPluginManager()->registerEvents(new Shield(
@@ -56,6 +57,7 @@ class KitPlugin extends PluginBase implements Listener
 
     }
 
+    /** もういらない */
     public function onCommand(CommandSender $sender, Command $command, string $label, array $args) : bool
     {
         switch (strtolower($command->getName())) {
@@ -125,6 +127,10 @@ class KitPlugin extends PluginBase implements Listener
                 break;
             case Item::fromString('Gold Block')->getId():
                 $this->gacha($player, 'sub');
+                $e->setCancelled();
+                break;
+            case Item::fromString('Iron Block')->getId():
+                $this->gacha($player, 'armor');
                 $e->setCancelled();
                 break;
 
@@ -202,7 +208,40 @@ class KitPlugin extends PluginBase implements Listener
             case Item::fromString('Splash Potion')->getId():
                 $this->inventories->setNested($player->getName() . '.game.sub', $item->setCount(1));
                 $player->sendMessage($item->getName() . ' がサブ武器に設定されました。');
-            
+                break;
+                
+            case Item::fromString('leather helmet')->getId():
+            case Item::fromString('chain helmet')->getId():
+            case Item::fromString('iron helmet')->getId():
+            case Item::fromString('Diamond helmet')->getId():
+                $this->inventories->setNested($player->getName() . '.game.helmet', $item);
+                $player->sendMessage($item->getName() . ' が装備に設定されました。');
+                break;
+                
+            case Item::fromString('leather chestplate')->getId():
+            case Item::fromString('chain chestplate')->getId():
+            case Item::fromString('iron chestplate')->getId():
+            case Item::fromString('Diamond chestplate')->getId():
+                $this->inventories->setNested($player->getName() . '.game.chestplate', $item);
+                $player->sendMessage($item->getName() . ' が装備に設定されました。');
+                break;
+                
+            case Item::fromString('leather leggings')->getId():
+            case Item::fromString('chain leggings')->getId():
+            case Item::fromString('iron leggings')->getId():
+            case Item::fromString('Diamond leggings')->getId():
+                $this->inventories->setNested($player->getName() . '.game.leggings', $item);
+                $player->sendMessage($item->getName() . ' が装備に設定されました。');
+                break;
+                
+            case Item::fromString('leather boots')->getId():
+            case Item::fromString('chain boots')->getId():
+            case Item::fromString('iron boots')->getId():
+            case Item::fromString('Diamond boots')->getId():
+                $this->inventories->setNested($player->getName() . '.game.boots', $item);
+                $player->sendMessage($item->getName() . ' が装備に設定されました。');
+                break;
+                
             default:
                 # code...
                 break;
