@@ -15,13 +15,14 @@ use pocketmine\command\CommandSender;
 use pocketmine\event\Listener;
 use pocketmine\event\entity\EntityDamageEvent;
 use pocketmine\event\entity\EntityLevelChangeEvent;
+use pocketmine\event\entity\ProjectileLaunchEvent;
 use pocketmine\event\player\PlayerInteractEvent;
+use pocketmine\event\player\PlayerRespawnEvent;
 use pocketmine\item\Item;
 use pocketmine\level\Explosion;
 use pocketmine\plugin\PluginBase;
 use pocketmine\utils\Config;
-use pocketmine\event\entity\ProjectileLaunchEvent;
-use pocketmine\event\player\PlayerRespawnEvent;
+use pocketmine\item\Armor;
 
 
 class KitPlugin extends PluginBase implements Listener
@@ -158,6 +159,27 @@ class KitPlugin extends PluginBase implements Listener
         if (\in_array($target->getName(), $this->getConfig()->get('gameworlds', []))) {
             // moving into GameWorld
             $items = $this->getSavedInventory($player->getName() . '.game');
+            foreach ($items as $index => $item) {
+                if(!$item instanceof Armor) continue;
+                switch ($item->getArmorSlot()) {
+                    case 0:
+                        $player->getArmorInventory()->setHelmet($item);
+                        break;
+                    
+                    case 1:
+                        $player->getArmorInventory()->setChestplate($item);
+                        break;
+
+                    case 2:
+                        $player->getArmorInventory()->setLeggings($item);
+                        break;
+
+                    case 3:
+                        $player->getArmorInventory()->setBoots($item);
+                        break;
+                }
+                unset($items[$index]);
+            }
             $player->getInventory()->setContents($items);
         } elseif (\in_array($target->getName(), $this->getConfig()->get('shopworlds', []))) {
             // moving into ShopWorld
