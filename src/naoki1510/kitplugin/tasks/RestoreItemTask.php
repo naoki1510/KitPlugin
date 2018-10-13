@@ -31,7 +31,7 @@ class RestoreItemTask extends Task
     public function onRun(Int $currentTick)
     {
         $count = 0;
-        if (!$this->player instanceof Player) return;
+        if (!$this->player->isOnline()) return;
         foreach ($this->player->getInventory()->getContents() as $invitem) {
             if($invitem->getId() === $this->item->getId() && $invitem->getDamage() === $this->item->getDamage()){
                 $count += $invitem->getCount();
