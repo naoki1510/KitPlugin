@@ -72,7 +72,13 @@ class KitPlugin extends PluginBase implements Listener
         }
         return false;
     }
-
+    
+    /**
+     * ガチャを引く。
+     * @param Player $player
+     * @param string $type
+     */
+     
     public function gacha(Player $player, string $type){
         if (!$this->gachalist->exists($type)) {
             $player->sendMessage('that type was not found.');
@@ -90,6 +96,14 @@ class KitPlugin extends PluginBase implements Listener
                 $item->setCount($items[$itemName]);
 
                 if (!$item instanceof Item) return false;
+                
+                while (true) {
+                    if (rand(0, 4) !== 0) break;
+                    switch (true) {
+                        
+                    }
+                    
+                }
 
                 if ($player->getInventory()->canAddItem($item)) {
                     if (EconomyAPI::getInstance()->reduceMoney($player, $this->getConfig()->getNested('cost.'. $type, 3000)) === 1) {
@@ -141,6 +155,9 @@ class KitPlugin extends PluginBase implements Listener
         }
     }
 
+    /**
+     * ワールド間テレポートした時
+     */
     public function onTeleportWorld(EntityLevelChangeEvent $e)
     {
         //Playerなどイベント関連情報を取得
@@ -168,6 +185,7 @@ class KitPlugin extends PluginBase implements Listener
     }
 
     /**
+     * インベントリを復元
      * @param string $key
      * @param Item[] $items
      * 
@@ -190,6 +208,7 @@ class KitPlugin extends PluginBase implements Listener
     }
 
     /**
+     * 武器等を振り分け
      * @param Item $item
      */
     private function setGameInventory(Player $player, $item){
@@ -250,6 +269,7 @@ class KitPlugin extends PluginBase implements Listener
     }
 
     /**
+     * いらねぇ
      * @param Item[]|string[] $items
      * 
      * @return Item[]
@@ -268,6 +288,7 @@ class KitPlugin extends PluginBase implements Listener
         return $pditems;
     }
 
+    /** ショップ内での発射禁止 */
     public function onLaunchProjectile(ProjectileLaunchEvent $e){
         if(in_array($e->getEntity()->getLevel()->getName(), $this->getConfig()->get('shopworlds', []))) $e->setCancelled();
     }
