@@ -14,19 +14,14 @@ use pocketmine\nbt\tag\FloatTag;
 use pocketmine\nbt\tag\ListTag;
 use pocketmine\nbt\tag\ShortTag;
 use pocketmine\scheduler\TaskScheduler;
+use naoki1510\kitplugin\Weapon;
 
-class Bom implements Listener
+class Bom extends Weapon
 {
-    /** @var TaskScheduler */
-    private  $scheduler;
-
-    /** @var string[] */
-    public $levels = [];
-    
-    public function __construct(TaskScheduler $scheduler, $levels) {
-        $this->scheduler = $scheduler;
-        $this->levels = $levels;
-    }
+    /** @var Int */
+    public $maxCount = 1;
+    public $weaponId = 46;
+    public $delay = 30 * 20;
 
     public function onPlayerItemUse(PlayerItemUseEvent $e)
     {
@@ -60,10 +55,7 @@ class Bom implements Listener
                 $entities->setMotion($entities->getMotion()->multiply($f));
                 $player->getInventory()->setItemInHand($hand->setCount($hand->getCount() - 1));
 
-                $this->scheduler->scheduleDelayedTask(new RestoreItemTask(
-                    Item::fromString('TNT'),
-                    $player
-                ), 45 * 20);
+                $this->reload($player, Item::get(46));
 
                 $e->setCancelled();
                 break;
@@ -74,6 +66,5 @@ class Bom implements Listener
     {
         $e->setBlockBreaking(false);
         $e->setForce(2.5);
-        //$this->getLogger()->info($e->getEntity()->getDataPropertyManager()->getString(100));
     }
 }

@@ -10,23 +10,22 @@ use pocketmine\event\block\BlockPlaceEvent;
 use pocketmine\item\Item;
 use pocketmine\scheduler\TaskScheduler;
 use pocketmine\utils\Config;
+use naoki1510\kitplugin\Weapon;
 
-class Shield implements Listener {
+class Shield extends Weapon {
 
-    /** @var Scheduler */
-    private $scheduler;
+    /** @var Int */
+    public $maxCount = 2;
+    public $weaponId = 160;
+    public $delay = 45 * 20;
 
     /** @var Config */
     private $overlapping;
 
-    /** @var string[] */
-    public $levels = [];
-
-    public function __construct(TaskScheduler $scheduler, Config $overlapping, array $levels)
+    public function __construct(TaskScheduler $scheduler, array $levels, Config $overlapping)
     {
-        $this->scheduler = $scheduler;
+        parent::__construct($scheduler, $levels);
         $this->overlapping = $overlapping;
-        $this->levels = $levels;
     }
 
     public function onPlace(BlockPlaceEvent $e)
@@ -49,7 +48,7 @@ class Shield implements Listener {
                     }
                     $rblock = $player->getLevel()->getBlock($pos);
                     if ($rblock->getId() === 0) {
-                        $player->getLevel()->setBlock($pos, Item::fromString('stained_glass_pane')->getBlock());
+                        $player->getLevel()->setBlock($pos, $block);
                         array_push($changedPos, $pos);
                     } else if ($rblock->getId() === Item::fromString('stained_glass_pane')->getId()) {
                         array_push($changedPos, $pos);
@@ -67,10 +66,7 @@ class Shield implements Listener {
                 10 * 20
             );
 
-            $this->scheduler->scheduleDelayedTask(new RestoreItemTask(
-                $block->getItem(),
-                $player
-            ), 15 * 20);
+            $this->reload($player, $block->getItem());
         }
     }
 }

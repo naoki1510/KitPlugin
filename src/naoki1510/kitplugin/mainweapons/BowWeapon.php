@@ -11,20 +11,19 @@ use pocketmine\event\entity\ProjectileHitEntityEvent;
 use pocketmine\event\player\PlayerInteractEvent;
 use pocketmine\item\Item;
 use pocketmine\scheduler\TaskScheduler;
+use naoki1510\kitplugin\Weapon;
 
-class BowWeapon implements Listener
+class BowWeapon extends Weapon// implements Listener
 {
-    /** @var TaskScheduler */
-    private $scheduler;
+    /** @var Int */
+    public $maxCount = 32;
+    public $weaponId = 261;
+    public $itemId = 262;
+    public $delay = 5 * 20;
 
     /** @var Array */
     public $reloading;
-
-    public function __construct(TaskScheduler $scheduler)
-    {  
-        $this->scheduler = $scheduler;
-    }
-
+    
     public function onHit(ProjectileHitEntityEvent $e){
         $entity = $e->getEntity();
         if ($entity instanceof Arrow) {
@@ -45,30 +44,12 @@ class BowWeapon implements Listener
         switch ($hand->getId()) {
             case Item::fromString('Bow')->getId():
 
-                $item = Item::fromString('Arrow')->setCount(32);
+                $item = Item::fromString('Arrow')->setCount($this->maxCount);
 
-                $count = 0;
-                foreach ($player->getInventory()->getContents() as $invitem) {
-                    if ($invitem->getId() === $item->getId() && $invitem->getDamage() === $item->getDamage()) {
-                        $count += $invitem->getCount();
-                    }
-                }
-                if($count <= $item->getCount() && (empty($this->reloading[$player->getName()]) || ($this->reloading[$player->getName()]) < Server::getInstance()->getTick() - 5 * 20)){
-                    $this->scheduler->scheduleDelayedTask(new RestoreItemTask(
-                        $item,
-                        $player
-                    ), 5 * 20);
-
-                    $player->sendMessage('Reloading...');
-                    $this->reloading[$player->getName()] = Server::getInstance()->getTick();
-                }
+                $this->reload($player, $item);
 
                 $e->setCancelled();
                 break;
         }
-    }
-
-    public function reload($player){
-
     }
 }

@@ -14,26 +14,24 @@ use pocketmine\event\player\PlayerInteractEvent;
 use pocketmine\item\Item;
 use pocketmine\scheduler\TaskScheduler;
 use pocketmine\event\player\PlayerItemUseEvent;
+use naoki1510\kitplugin\Weapon;
 
-class SnowBallWeapon implements Listener
+class SnowBallWeapon extends Weapon
 {
-    /** @var TaskScheduler */
-    private $scheduler;
+    /** @var Int */
+    public $maxCount = 48;
+    public $weaponId = 332;
+    public $delay = 4 * 20;
 
     /** @var Array */
     public $reloading;
-
-    public function __construct(TaskScheduler $scheduler)
-    {
-        $this->scheduler = $scheduler;
-    }
     
     public function onDamage(EntityDamageByChildEntityEvent $e){
         $entity = $e->getChild();
         if ($entity instanceof Snowball) {
             if (($shooter = $entity->getOwningEntity()) instanceof Player) {
                 $distance = $e->getEntity()->distance($shooter);
-                $damage = 12 - sqrt($distance + 4);
+                $damage = 9 - 2 * sqrt($distance + 4);
                 if ($damage >= 0) {
                     $e->setBaseDamage($damage);
                 } else {
@@ -61,22 +59,8 @@ class SnowBallWeapon implements Listener
                     }
                 }
                 if ($count <= 4) {
-                    if(empty($this->reloading[$player->getName()]) || $this->reloading[$player->getName()] < Server::getInstance()->getTick()){
-                        $this->scheduler->scheduleDelayedTask(new RestoreItemTask(
-                            $item,
-                            $player
-                        ), 4 * 20);
-
-                        $player->sendMessage('Reloading...');
-                        $this->reloading[$player->getName()] = Server::getInstance()->getTick() + 20 * 4;
-                    }
-                    //var_dump($this->reloading[$player->getName()], Server::getInstance()->getTick());
-                    
-                }else{
-                    //$player->sendMessage('You don\'t have to reload');
+                    $this->reload($player, $item);
                 }
-
-                //$e->setCancelled();
                 break;
         }
     }

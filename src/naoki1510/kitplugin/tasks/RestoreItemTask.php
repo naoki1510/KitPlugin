@@ -21,11 +21,15 @@ class RestoreItemTask extends Task
     /** @var Int */
     public $max;
 
-    public function __construct(Item $item, Player $player, Int $max = null)
+    /** @var string */
+    public $message;
+
+    public function __construct(Item $item, Player $player, Int $max = null, string $message = null)
     {
         $this->item = $item;
         $this->player = $player;
         $this->max = $max ?? $item->getCount();
+        $this->message = $message ?? '{item} Reloaded';
     }
 
     public function onRun(Int $currentTick)
@@ -41,7 +45,7 @@ class RestoreItemTask extends Task
             $items = $this->item->setCount(min($this->max - $count, $this->item->getCount()));
             if($this->player->getInventory()->canAddItem($items)){
                 $this->player->getInventory()->addItem($items);
-                $this->player->sendMessage($items->getName() . ' reloaded');
+                $this->player->sendMessage(str_ireplace('{item}', $items->getName(), $this->message));
             }
             //$this->player->sendMessage('Reloaded2');
         }
