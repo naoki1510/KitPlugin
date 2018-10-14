@@ -16,6 +16,8 @@ use pocketmine\Server;
 use pocketmine\block\Block;
 use pocketmine\command\Command;
 use pocketmine\command\CommandSender;
+use pocketmine\entity\Effect;
+use pocketmine\entity\EffectInstance;
 use pocketmine\event\Listener;
 use pocketmine\event\block\SignChangeEvent;
 use pocketmine\event\entity\EntityDamageEvent;
@@ -38,7 +40,7 @@ use pocketmine\plugin\PluginBase;
 use pocketmine\tile\Sign;
 use pocketmine\utils\Config;
 
-
+/** @todo getcost,getrank */
 class KitPlugin extends PluginBase implements Listener
 {
     /** @var Config */
@@ -88,14 +90,14 @@ class KitPlugin extends PluginBase implements Listener
             case Block::SIGN_POST:
                 $sign = $block->getLevel()->getTile($block->asPosition());
 
-                if ($sign instanceof Sign && preg_match('/^(§[0-9a-f])*\[kit\]$/iu', trim($sign->getLine(0))) == 1) {
-                    preg_match('/^(§[0-9a-f])*(.*)$/u', trim($sign->getLine(1)), $m);
+                if ($sign instanceof Sign && preg_match('/^(§[0-9a-fl])*\[kit\]$/iu', trim($sign->getLine(0))) == 1) {
+                    preg_match('/^(§[0-9a-fl])*(.*)$/u', trim($sign->getLine(1)), $m);
                     $kit = $m[2];
                     
 			        // Kit名が存在するか
                     if ($this->kit->exists($kit)) {
                         // すでにその職の時はパス
-                        if ($this->playerdata->getNested($player->getName() . '.now', '') === $kit) return;
+                        if ($this->playerdata->getNested($player->getName() . '.now', '') === $kit) break;
 
                         $rank = $this->kit->getNested($kit . '.rank', 0);
                         $cost = $this->kit->getNested($kit . '.cost', [0, 3000, 5000, 7000, 10000][$rank]);
@@ -126,8 +128,8 @@ class KitPlugin extends PluginBase implements Listener
     public function reloadSign($sign)
     {
         try{
-            if (preg_match('/^(§[0-9a-f])*\[kit\]$/iu', trim($sign->getLine(0))) == 1) {
-                preg_match('/^(§[0-9a-f])*(.*)$/u', trim($sign->getLine(1)), $m);
+            if (preg_match('/^(§[0-9a-fl])*\[kit\]$/iu', trim($sign->getLine(0))) == 1) {
+                preg_match('/^(§[0-9a-fl])*(.*)$/u', trim($sign->getLine(1)), $m);
                 $kit = $m[2];
             
 			    // Kit名が存在するか
@@ -135,10 +137,10 @@ class KitPlugin extends PluginBase implements Listener
 
                     $rank = $this->kit->getNested($kit . '.rank', 0);
                     $cost = $this->kit->getNested($kit . '.cost', [0, 3000, 5000, 7000, 10000][$rank]);
-                    $rankcolor = '§' . [0, 6, 'f', 'e', 'b'][$rank];
+                    $rankcolor = '§' . ['d', 6, 'f', 'e', 'b'][$rank];
 
                     $sign->setLine(0, '§a[Kit]');
-                    $sign->setLine(1, $rankcolor . $kit);
+                    $sign->setLine(1, $rankcolor . '§l' . $kit);
                     $sign->setLine(2, '§c$' . $cost);
                     $sign->setLine(3, $rankcolor . ['Normal', 'Bronze', 'Silver', 'Gold', 'Platinum'][$rank]);
                 }
@@ -186,7 +188,11 @@ class KitPlugin extends PluginBase implements Listener
         if (!$this->kit->exists($kit)) return false;
         $this->playerdata->setNested($player->getName() . '.now', $kit);
 
-        return $this->giveItems($player, $kit);
+        if (in_array($player->getLevel()->getName(), $this->getConfig()->get('gameworlds', []))){
+            return $this->giveItems($player, $kit);
+        }
+
+        return true;
     }
 
     /** パケット受信
@@ -233,7 +239,7 @@ class KitPlugin extends PluginBase implements Listener
         $data = $this->kit->get($kit);
         $items = [];
 
-        foreach ($data['items'] as $itemInfo) {
+        foreach ($data['items'] ?? [] as $itemInfo) {
             try{
                 $item = Item::fromString($itemInfo['name']);
                 $item->setCount($itemInfo['count'] ?? 1);
@@ -253,7 +259,7 @@ class KitPlugin extends PluginBase implements Listener
             }
         }
 
-        foreach ($data['armor'] as $slot => $armorInfo) {
+        foreach ($data['armor'] ?? [] as $slot => $armorInfo) {
             try {
                 $item = Item::fromString($armorInfo['name']);
 
@@ -276,6 +282,12 @@ class KitPlugin extends PluginBase implements Listener
             } catch (\InvalidArgumentException $e) {
                 $this->getLogger()->warning($e->getMessage());
             }
+        }
+
+        foreach ($data['effects'] ?? [] as $slot => $effectInfo) {
+            $player->removeAllEffects();
+            $effect = Effect::getEffect($effectInfo['id'] ?? 1);
+            $player->addEffect(new EffectInstance($effect, $effectInfo['duration'] ?? 2147483647, $effectInfo['amplification'] ?? $effectInfo['amp'] ?? 0, $effectInfo['visible'] ?? false));
         }
 
         $player->getInventory()->setContents($items);
@@ -301,6 +313,8 @@ class KitPlugin extends PluginBase implements Listener
         /** @var Player $player */
         $player = $e->getEntity();
         if (!$player instanceof Player) return;
+
+        $player->removeAllEffects();
 
         $target = $e->getTarget();
         $origin = $e->getOrigin();
