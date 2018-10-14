@@ -2,6 +2,7 @@
 
 namespace naoki1510\kitplugin;
 
+use naoki1510\kitplugin\EventListener;
 use naoki1510\kitplugin\KitPlugin;
 use naoki1510\kitplugin\mainweapons\BowWeapon;
 use naoki1510\kitplugin\mainweapons\SnowBallWeapon;
@@ -11,15 +12,19 @@ use naoki1510\kitplugin\subweapons\Shield;
 use naoki1510\kitplugin\tasks\BlockRecoveryTask;
 use onebone\economyapi\EconomyAPI;
 use pocketmine\Player;
+use pocketmine\Server;
+use pocketmine\block\Block;
 use pocketmine\command\Command;
 use pocketmine\command\CommandSender;
 use pocketmine\event\Listener;
+use pocketmine\event\block\SignChangeEvent;
 use pocketmine\event\entity\EntityDamageEvent;
 use pocketmine\event\entity\EntityLevelChangeEvent;
 use pocketmine\event\entity\ProjectileLaunchEvent;
 use pocketmine\event\player\PlayerInteractEvent;
 use pocketmine\event\player\PlayerItemUseEvent;
 use pocketmine\event\player\PlayerRespawnEvent;
+use pocketmine\event\server\DataPacketReceiveEvent;
 use pocketmine\item\Armor;
 use pocketmine\item\Bow;
 use pocketmine\item\Item;
@@ -27,19 +32,24 @@ use pocketmine\item\Sword;
 use pocketmine\item\enchantment\Enchantment;
 use pocketmine\item\enchantment\EnchantmentInstance;
 use pocketmine\level\Explosion;
+use pocketmine\network\mcpe\protocol\ModalFormRequestPacket;
+use pocketmine\network\mcpe\protocol\ModalFormResponsePacket;
 use pocketmine\plugin\PluginBase;
+use pocketmine\tile\Sign;
 use pocketmine\utils\Config;
 
 
 class KitPlugin extends PluginBase implements Listener
 {
     /** @var Config */
-    private $gachalist;
-    private $playerdata;
-    private $inventories;
+    public $kit;
+    public $playerdata;
 
     /** @var Weapon[] */
     private $listeners;
+
+    /** @var string[] */
+    private $cue = [];
 
     public function onEnable()
     {
@@ -47,134 +57,62 @@ class KitPlugin extends PluginBase implements Listener
         $this->getLogger()->info("§eKitPlugin was loaded.");
 
         $this->saveDefaultConfig();
-		//PlayerData.yml作成
+		//コンフィグ作成
         $this->playerdata = new Config($this->getDataFolder() . 'PlayerData.yml', Config::YAML);
-        $this->saveResource('gacha.yml');
-        $this->gachalist = new Config($this->getDataFolder() . 'gacha.yml', Config::YAML);
-        $this->inventories = new Config($this->getDataFolder() . 'inventories.yml', Config::YAML);
+        $this->saveResource('kit.json');
+        $this->kit = new Config($this->getDataFolder() . 'kit.json', Config::JSON);
 
 		// イベントリスナー登録
         $this->getServer()->getPluginManager()->registerEvents($this, $this);
-
-        $this->listeners = [
-            new SnowBallWeapon($this->getScheduler(), $this->getConfig()->get('gameworlds', [])),
-            new BowWeapon($this->getScheduler(), $this->getConfig()->get('gameworlds', [])),
-
-            new Bom($this->getScheduler(), $this->getConfig()->get('gameworlds', [])),
-            new Shield(
-                $this->getScheduler(),
-                $this->getConfig()->get('gameworlds', []),
-                new Config($this->getDataFolder() . 'cache.yml', Config::YAML)
-            ),
-            new PotionWeapon($this->getScheduler(), $this->getConfig()->get('gameworlds', [])),
-
-        ];
-       
-        foreach($this->listeners as $listener){
-            if($listener instanceof Listener)
-            $this->getServer()->getPluginManager()->registerEvents($listener, $this);
-        }
-
+        $this->getServer()->getPluginManager()->registerEvents(new EventListener($this), $this);
     }
-    
-    /**
-     * ガチャを引く。
-     * @param Player $player
-     * @param string $type
-     */
-     
-    public function gacha(Player $player, string $type){
-        if (!$this->gachalist->exists($type)) {
-            $player->sendMessage('that type was not found.');
-            return;
-        }
 
-        $rand = rand(0, 99);
-        if(is_array($this->gachalist->get($type, null))){
-            $list = $this->gachalist->get($type);
+    public function onDisable()
+    {
+        $this->playerdata->save();
+    }
 
-            foreach ($list as $percent => $items) {
-                if($rand >= $percent) continue;
-
-                $itemName = array_rand($items);
-                $item = Item::fromString($itemName);
-                $item->setCount($items[$itemName]);
-                if (!$item instanceof Item) return false;
-                
-                while (true) {
-                    if (rand(0, 7) !== 0) break;
-                    switch (true) {
-                        case $item instanceof Sword:
-                            $enchantId = [9, 12, 13][rand(0, 2)];
-                            break;
-
-                        case $item instanceof Bow:
-                            $enchantId = rand(19, 22);
-                            break;
-
-                        case $item instanceof Armor:
-                            $enchantId = rand(0, 5);
-                            break;
-
-                        default:
-                            break 2;
-                    }
-
-                    $enchLevel = 1;
-                    while(true){
-                        if (rand(0, 3) !== 0) break;
-                        $enchLevel++;
-                    }
-                    $ench = Enchantment::getEnchantment($enchantId);
-                    if($ench instanceof Enchantment){
-                        $item->addEnchantment(new EnchantmentInstance($ench, $enchLevel));
-                    }else{
-                        var_dump($enchantId, $enchLevel);
-                    }
-                    
-                }
-
-                if ($player->getInventory()->canAddItem($item)) {
-                    if (EconomyAPI::getInstance()->reduceMoney($player, $this->getConfig()->getNested('cost.'. $type, 3000)) === 1) {
-                        $player->getInventory()->addItem($item);
-                        return true;
-                    } else {
-                        $player->sendMessage('お金が足りません。');
-                    }
-                } else {
-                    $player->sendMessage('インベントリに空きがありません。');
-                }
-            }
-        }else{
-            $player->sendMessage('データが壊れています。');
-        }
-        return false;
+    public function onSignChange(SignChangeEvent $e){
+        $this->reloadSign($e);
     }
 
     public function onPlayerTap(PlayerInteractEvent $e)
     {
-        //$this->getServer()->getLogger()->info($e->getEventName() . " was Called.");
         $player = $e->getPlayer();
         if($player->isSneaking()) return;
-        $block = $e->getBlock();
-        /** @var Item $hand */
-        $hand = $player->getInventory()->getItemInHand();
-        switch ($block->getId()) {
-            case Item::fromString('Diamond Block')->getId():
-                $this->gacha($player, 'main');
-                break;
-            case Item::fromString('Gold Block')->getId():
-                $this->gacha($player, 'sub');
-                break;
-            case Item::fromString('Iron Block')->getId():
-                $this->gacha($player, 'armor');
-                break;
 
-            case Item::fromString('Diamond Ore')->getId():
-                $this->setGameInventory($player, $hand);
-                break;
-            case Item::fromString('Coal Ore')->getId():
-                $player->getInventory()->setItemInHand(Item::get(Item::AIR));
+        $block = $e->getBlock();
+        switch ($block->getId()) {
+            // 看板
+            case Block::WALL_SIGN:
+            case Block::SIGN_POST:
+                $sign = $block->getLevel()->getTile($block->asPosition());
+
+                if ($sign instanceof Sign && preg_match('/^(§[0-9a-f])*\[kit\]$/iu', trim($sign->getLine(0))) == 1) {
+                    preg_match('/^(§[0-9a-f])*(.*)$/u', trim($sign->getLine(1)), $m);
+                    $kit = $m[2];
+                    
+			        // Kit名が存在するか
+                    if ($this->kit->exists($kit)) {
+                        // すでにその職の時はパス
+                        if ($this->playerdata->getNested($player->getName() . '.now', '') === $kit) return;
+
+                        $rank = $this->kit->getNested($kit . '.rank', 0);
+                        $cost = $this->kit->getNested($kit . '.cost', [0, 3000, 5000, 7000, 10000][$rank]);
+                        $this->reloadSign($sign);
+
+                        // 購入済みか、もしくはランク０
+                        if ($this->playerdata->getNested($player->getName() . '.purchased.' . $kit, false) || $rank === 0){
+                            $this->setKit($player, $kit);
+                            $player->sendMessage('You are now ' . $kit);
+                        }else{
+                            // Kit購入
+                            $this->buyKit($player, $kit);
+                        }
+                    } else {
+                        $player->sendMessage('キットが見つかりません');
+                    }
+                }
                 break;
 
             default:
@@ -184,182 +122,165 @@ class KitPlugin extends PluginBase implements Listener
         $e->setCancelled();
     }
 
-    /**
-     * ワールド間テレポートした時
-     */
-    public function onTeleportWorld(EntityLevelChangeEvent $e)
+    /** @param SignChangeEvent|Sign $sign */
+    public function reloadSign($sign)
     {
-        //Playerなどイベント関連情報を取得
-        /** @var Player $player */
-        $player = $e->getEntity();
-        if (!$player instanceof Player) return;
-        
-        $target = $e->getTarget();
-        $origin = $e->getOrigin();
-        if (\in_array($origin->getName(), $this->getConfig()->get('shopworlds', []))) {
-            // moving from Shopworld
-            foreach ($player->getArmorInventory()->getContents() as $slot => $item) {
-                $this->setGameInventory($player, $item, false);
-            }
-            $this->inventories->setNested($player->getName() . 'inventory.shop', $player->getInventory()->getContents());
-            $this->inventories->setNested($player->getName() . 'armor.shop', $player->getArmorInventory()->getContents());
-        }
-
-        if (\in_array($target->getName(), $this->getConfig()->get('gameworlds', []))) {
-            // moving into GameWorld
-            $this->giveItems($player);
-        } elseif (\in_array($target->getName(), $this->getConfig()->get('shopworlds', []))) {
-            // moving into ShopWorld
-            $items = $this->getSavedInventory($player->getName() . 'inventory.shop');
-            $player->getInventory()->setContents($items);
-            $items = $this->getSavedInventory($player->getName() . 'armor.shop');
-            $player->getArmorInventory()->setContents($items);
-        } 
-        $this->inventories->save();
-    }
-
-    /**
-     * インベントリを復元
-     * @param string $key
-     * @param Item[] $items
-     * 
-     * @return Item[]
-     */
-    private function getSavedInventory(string $key){
-
-        $items = [];
-        foreach ($this->inventories->getNested($key, []) as $key => $item) {
-            // if this was saved before server restarting, $item has been serialized.
-            if ($item instanceof Item) {
-                $items[$key] = $item;
-            } elseif (is_string($item)) {
-                if (($item = unserialize($item)) instanceof Item) {
-                    $items[$key] = $item;
-                }
-            }
-        }
-        return $items;
-    }
-
-    /**
-     * 武器等を振り分け
-     * @param Item $item
-     */
-    private function setGameInventory(Player $player, Item $item, bool $message = true){
-        switch ($item->getId()) {
-            case Item::fromString('Bow')->getId():
-            case Item::fromString('Stone Sword')->getId():
-            case Item::fromString('Iron Sword')->getId():
-            case Item::fromString('Diamond Sword')->getId():
-            case Item::fromString('Snowball')->getId():
-                $this->inventories->setNested($player->getName() . '.game.main', $item);
-                if ($message)  $player->sendMessage($item->getName() . ' がメイン武器に設定されました。');
-                break;
-
-            case Item::fromString('TNT')->getId():
-            case Item::fromString('Stained Glass Pane')->getId():
-            case Item::fromString('Splash Potion')->getId():
-                $this->inventories->setNested($player->getName() . '.game.sub', $item->setCount(1));
-                if ($message) $player->sendMessage($item->getName() . ' がサブ武器に設定されました。');
-                break;
-
-            case Item::fromString('leather helmet')->getId():
-            case Item::fromString('chain helmet')->getId():
-            case Item::fromString('iron helmet')->getId():
-            case Item::fromString('Diamond helmet')->getId():
-                $this->inventories->setNested($player->getName() . '.game.helmet', $item);
-                if ($message) $player->sendMessage($item->getName() . ' が装備に設定されました。');
-                break;
-                
-            case Item::fromString('leather chestplate')->getId():
-            case Item::fromString('chain chestplate')->getId():
-            case Item::fromString('iron chestplate')->getId():
-            case Item::fromString('Diamond chestplate')->getId():
-            case Item::fromString('Elytra')->getId():
-                $this->inventories->setNested($player->getName() . '.game.chestplate', $item);
-                if ($message) $player->sendMessage($item->getName() . ' が装備に設定されました。');
-                break;
-                
-            case Item::fromString('leather leggings')->getId():
-            case Item::fromString('chain leggings')->getId():
-            case Item::fromString('iron leggings')->getId():
-            case Item::fromString('Diamond leggings')->getId():
-                $this->inventories->setNested($player->getName() . '.game.leggings', $item);
-                if ($message) $player->sendMessage($item->getName() . ' が装備に設定されました。');
-                break;
-                
-            case Item::fromString('leather boots')->getId():
-            case Item::fromString('chain boots')->getId():
-            case Item::fromString('iron boots')->getId():
-            case Item::fromString('Diamond boots')->getId():
-                $this->inventories->setNested($player->getName() . '.game.boots', $item);
-                if ($message) $player->sendMessage($item->getName() . ' が装備に設定されました。');
-                break;
+        try{
+            if (preg_match('/^(§[0-9a-f])*\[kit\]$/iu', trim($sign->getLine(0))) == 1) {
+                preg_match('/^(§[0-9a-f])*(.*)$/u', trim($sign->getLine(1)), $m);
+                $kit = $m[2];
             
-            default:
-                if ($message) $player->sendMessage($item->getName() . ' は登録できませんでした。');
-                break;
-        }
-        $this->inventories->save();
-    }
+			    // Kit名が存在するか
+                if ($this->kit->exists($kit)) {
 
-    public function giveItems(Player $player)
-    {
-        $items = $this->getSavedInventory($player->getName() . '.game');
-        $inv = [];
-        $player->getArmorInventory()->setContents([]);
-        foreach ($items as $slot => $item) {
-            $flag = true;
-            switch (strtolower($slot)) {
-                case 'helmet':
-                    $player->getArmorInventory()->setHelmet($item);
-                    break;
+                    $rank = $this->kit->getNested($kit . '.rank', 0);
+                    $cost = $this->kit->getNested($kit . '.cost', [0, 3000, 5000, 7000, 10000][$rank]);
+                    $rankcolor = '§' . [0, 6, 'f', 'e', 'b'][$rank];
 
-                case 'chestplate':
-                    $player->getArmorInventory()->setChestplate($item);
-                    break;
-
-                case 'leggings':
-                    $player->getArmorInventory()->setLeggings($item);
-                    break;
-
-                case 'boots':
-                    $player->getArmorInventory()->setBoots($item);
-                    break;
-
-                default:
-                    foreach ($this->listeners as $weapon) {
-                        if($weapon->weaponId === $item->getId()){
-                            $weapon->reload($player, Item::get($weapon->itemId)->setCount($weapon->maxCount), 10, true);
-                        }
-                    }
-                    array_push($inv, $item);
-                    break;
-            }
-        }
-
-        $player->getInventory()->setContents($inv);
-        return;
-    }
-
-    /**
-     * いらねぇ
-     * @param Item[]|string[] $items
-     * 
-     * @return Item[]
-     */
-    private function unserializeItems(array $items){
-        $pditems = [];
-        foreach ($items as $item) {
-            if ($item instanceof Item) {
-                array_push($pditems, $item);
-            } elseif (is_string($item)) {
-                if (unserialize($item) instanceof Item) {
-                    array_push($pditems, unserialize($item));
+                    $sign->setLine(0, '§a[Kit]');
+                    $sign->setLine(1, $rankcolor . $kit);
+                    $sign->setLine(2, '§c$' . $cost);
+                    $sign->setLine(3, $rankcolor . ['Normal', 'Bronze', 'Silver', 'Gold', 'Platinum'][$rank]);
                 }
             }
+        }catch(\BadMethodCallException $e){
+            $this->getLogger()->warning($e->getMessage());
         }
-        return $pditems;
+        
+    }
+
+    public function buyKit(Player $player, string $kit) : bool{
+        if (!$this->kit->exists($kit)) return false;
+
+        $rank = $this->kit->getNested($kit . '.rank', 0);
+        $cost = $this->kit->getNested($kit . '.cost', [0, 3000, 5000, 7000, 10000][$rank]);
+
+        if (EconomyAPI::getInstance()->myMoney($player) ?? 0 >= $cost) {
+
+            if (empty($this->cue[$player->getName()])) {
+                $this->cue[$player->getName()] = $kit;
+
+                //購入確認フォーム
+                $pk = new ModalFormRequestPacket();
+                $pk->formId = 229028;
+                $form['title'] = $kit . 'を購入しますか？';
+                $form['type'] = 'modal';
+                $form['content'] = $kit . PHP_EOL . '§6$' . $cost . "\n§rRank§l: " . ['§fNormal', '§6Bronze', '§fSilver', '§eGold', '§bPlatinum'][$rank];
+                $form['button1'] = 'Yes';
+                $form['button2'] = 'No';
+                $pk->formData = json_encode($form);
+                $player->dataPacket($pk);
+                return true;
+            }
+
+        } else {
+            $player->sendMessage('お金が足りません。');
+            return false;
+        }
+
+        return false;
+    }
+
+    public function setKit(Player $player, string $kit) : bool
+    {
+        if (!$this->kit->exists($kit)) return false;
+        $this->playerdata->setNested($player->getName() . '.now', $kit);
+
+        return $this->giveItems($player, $kit);
+    }
+
+    /** パケット受信
+     * 今回はフォーム
+     */
+    public function onRecievePacket(DataPacketReceiveEvent $ev)
+    {
+        $pk = $ev->getPacket();
+        $player = $ev->getPlayer();
+        if ($pk instanceof ModalFormResponsePacket) {
+            if ($pk->formId === 229028) { 
+                $data = json_decode($pk->formData, true);
+                if($data === null) return;
+                switch ($data) {
+                    case 0: //true(1)かfalse(0)です
+                        $player->sendMessage("購入をキャンセルしました。");
+                        break;
+
+                    case 1:
+                        $kit = $this->cue[$player->getName()];
+                        $rank = $this->kit->getNested($kit . '.rank', 0);
+                        $cost = $this->kit->getNested($kit . '.cost', [0, 3000, 5000, 7000, 10000][$rank]);
+
+                        if (EconomyAPI::getInstance()->reduceMoney($player, $cost) === 1) {
+                            $player->sendMessage($kit . "を購入しました。");
+                            $this->playerdata->setNested($player->getName() . '.purchased.' . $kit, true);
+                            $this->setKit($player, $kit);
+                        } else {
+                            $player->sendMessage('お金が足りません。');
+                        }
+                        break;
+                }
+
+                $this->cue[$player->getName()] = null;
+            }
+        }
+    }
+
+    public function giveItems(Player $player, string $kit = null) : bool
+    {
+        $kit = $kit ?? $this->playerdata->getNested($player->getName() . '.now');
+        if (!$this->kit->exists($kit)) return false;
+
+        $data = $this->kit->get($kit);
+        $items = [];
+
+        foreach ($data['items'] as $itemInfo) {
+            try{
+                $item = Item::fromString($itemInfo['name']);
+                $item->setCount($itemInfo['count'] ?? 1);
+
+                /** @var Item $item */
+                if (isset($itemInfo['enchantment'])) {
+                    $enchantments = $itemInfo['enchantment'];
+                    foreach ($enchantments as $enchdata) {
+                        $ench = Enchantment::getEnchantment($enchdata['id'] ?? 0);
+                        $item->addEnchantment(new EnchantmentInstance($ench, $enchdata['level'] ?? 1));
+                    }
+                }
+
+                array_push($items, $item);
+            }catch(\InvalidArgumentException $e){
+                $this->getLogger()->warning($e->getMessage());
+            }
+        }
+
+        foreach ($data['armor'] as $slot => $armorInfo) {
+            try {
+                $item = Item::fromString($armorInfo['name']);
+
+                /** @var Item $item */
+                if (isset($armorInfo['enchantment'])) {
+                    $enchantments = $armorInfo['enchantment'];
+                    foreach ($enchantments as $enchdata) {
+                        $ench = Enchantment::getEnchantment($enchdata['id'] ?? 0);
+                        $item->addEnchantment(new EnchantmentInstance($ench, $enchdata['level'] ?? 1));
+                    }
+                }
+
+                try{
+                    $slot = $item->getArmorSlot();
+                    $player->getArmorInventory()->setItem($slot, $item);
+                }catch(\BadMethodCallException $e){
+                    $this->getLogger()->warning($e->getMessage());
+                }
+
+            } catch (\InvalidArgumentException $e) {
+                $this->getLogger()->warning($e->getMessage());
+            }
+        }
+
+        $player->getInventory()->setContents($items);
+
+        return true;
     }
 
     /** ショップ内での発射禁止 */
@@ -372,5 +293,21 @@ class KitPlugin extends PluginBase implements Listener
     public function onRespawn(PlayerRespawnEvent $e){
         $player = $e->getPlayer();
         $this->giveItems($player);
+    }
+
+    public function onTeleportWorld(EntityLevelChangeEvent $e)
+    {
+        //Playerなどイベント関連情報を取得
+        /** @var Player $player */
+        $player = $e->getEntity();
+        if (!$player instanceof Player) return;
+
+        $target = $e->getTarget();
+        $origin = $e->getOrigin();
+        
+        if (\in_array($target->getName(), $this->getConfig()->get('gameworlds', []))) {
+            // moving into GameWorld
+            $this->giveItems($player);
+        }
     }
 }

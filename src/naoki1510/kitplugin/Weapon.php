@@ -9,6 +9,7 @@ use pocketmine\event\Listener;
 use pocketmine\event\player\PlayerRespawnEvent;
 use pocketmine\item\Item;
 use pocketmine\scheduler\TaskScheduler;
+use pocketmine\utils\Config;
 
 abstract class Weapon implements Listener
 {
@@ -24,13 +25,19 @@ abstract class Weapon implements Listener
     /** @var Array */
     public $reloading;
 
+    /** @var Config */
+    public $kit;
+    public $playerdata;
+
     /** @var string[] */
     public $levels = [];
 
-    public function __construct(TaskScheduler $scheduler, array $levels)
+    public function __construct(KitPlugin $plugin)
     {
-        $this->scheduler = $scheduler;
-        $this->levels = $levels;
+        $this->scheduler = $plugin->getScheduler();
+        $this->levels = $plugin->getConfig()->get('gameworlds', []);
+        $this->kit = $plugin->kit;
+        $this->playerdata = $plugin->playerdata;
         $this->itemId = $this->itemId ?? $this->weaponId;
     }
 

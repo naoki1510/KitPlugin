@@ -1,0 +1,197 @@
+{
+    "Fighter":{
+        "rank": 0,
+        "cost": 0,
+        "item": [
+            {
+                "name": "stone sword",
+                "count": 1
+            },
+            {
+                "name": "cooked beef",
+                "count": 3
+            }
+        ],
+        "armor": {
+            "helmet": {
+                "name": "leather helmet"
+            },
+            "cheatplate": {
+            	"name": "leather chestplate"
+            },
+            "leggings": {
+                "name": "leather leggings"
+            },
+            "boots": {
+                "name": "leather boots"
+            }
+        }
+    },
+
+    "Archer": {
+        "rank": 0,
+        "cost": 0,
+        "item": [
+            {
+                "name": "Bow",
+                "count": 1
+            },
+            {
+                "name": "Arrow",
+                "count": 32
+            }
+        ],
+        "armor": {
+            "helmet": {
+                "name": "leather helmet"
+            },
+            "cheatplate": {
+                "name": "leather chestplate"
+            },
+            "leggings": {
+                "name": "leather leggings"
+            },
+            "boots": {
+                "name": "leather boots"
+            }
+        }
+    },
+
+    "Guardian":{
+        "rank": 1,
+        "cost": 2000,
+        "item": [
+            {
+                "name": "stone axe",
+                "count": 1
+            },
+            {
+                "name": "cooked beef",
+                "count": 5
+            }
+        ],
+        "armor": {
+            "helmet": {
+                "name": "chain helmet"
+            },
+            "cheatplate": {
+                "name": "chain chestplate"
+            },
+            "leggings": {
+                "name": "chain leggings"
+            },
+            "boots": {
+                "name": "chain boots"
+            }
+        }
+    },
+
+    "Knight": {
+        "rank": 1,
+        "cost": 2000,
+        "item": [
+            {
+                "name": "stone sword",
+                "count": 1
+            },
+            {
+                "name": "cooked beef",
+                "count": 3
+            }
+        ],
+        "armor": {
+            "helmet": {
+                "name": "leather helmet"
+            },
+            "cheatplate": {
+                "name": "chain chestplate"
+            },
+            "leggings": {
+                "name": "chain leggings"
+            },
+            "boots": {
+                "name": "leather boots"
+            }
+        }
+    },
+
+    "Warrior": {
+        "rank": 2,
+        "cost": 5000,
+        "item": [
+            {
+                "name": "iron axe",
+                "count": 1,
+                "enchantment": [
+                    {
+                        "id": 12,
+                        "level": 3
+                    }
+                ]
+            },
+            {
+                "name": "cooked beef",
+                "count": 3
+            }
+        ],
+        "armor": {
+            "helmet": {
+                "name": "chain helmet"
+            },
+            "cheatplate": {
+                "name": "Iron chestplate"
+            },
+            "leggings": {
+                "name": "Iron leggings"
+            },
+            "boots": {
+                "name": "chain boots"
+            }
+        }
+    },
+
+    "RuneKnight": {
+        "rank": 3,
+        "cost": 5000,
+        "item": [
+            {
+                "name": "iron sword",
+                "count": 1,
+                "enchantment": [
+                    {
+                        "id": 13,
+                        "level": 1
+                    }
+                ]
+            },
+            {
+                "name": "cooked beef",
+                "count": 5
+            }
+        ],
+        "armor": {
+            "helmet": {
+                "name": "Iron helmet"
+            },
+            "cheatplate": {
+                "name": "Iron chestplate",
+                "enchantment": [{
+                	"id": 1,
+                	"level": 2
+                }]
+            },
+            "leggings": {
+                "name": "Iron leggings",
+                "enchantment": [
+                    {
+                        "id": 1,
+                        "level": 2
+                    }
+                ]
+            },
+            "boots": {
+                "name": "Iron boots"
+            }
+        }
+    }
+}
