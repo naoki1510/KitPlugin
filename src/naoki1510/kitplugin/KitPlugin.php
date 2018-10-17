@@ -342,7 +342,7 @@ class KitPlugin extends PluginBase implements Listener
      * @return int|null
      */
     public function getLevel(Player $player, string $kit) {
-        $purchased = $this->playerdata->getNested($player->getName() . 'purchased');
+        $purchased = $this->playerdata->getNested($player->getName() . '.purchased', []);
         foreach ($purchased as $pkit => $level) {
             if ($kit === $pkit) {
                 return $level ?: null;
