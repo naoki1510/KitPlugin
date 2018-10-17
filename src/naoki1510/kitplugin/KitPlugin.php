@@ -167,7 +167,11 @@ class KitPlugin extends PluginBase implements Listener
         if (!empty($lack)) {
             $player->sendMessage($kit . 'を購入できません。');
             foreach ($lack as $kit => $level) {
-                $player->sendMessage($kit . 'のレベルが' . $level .'に達していません。');
+                if($level < 2){
+                    $player->sendMessage($kit . 'が解放されていません。');
+                }else{
+                    $player->sendMessage($kit . 'のレベルが' . $level . 'に達していません。');
+                }
             }
             return false;
         }
@@ -263,8 +267,8 @@ class KitPlugin extends PluginBase implements Listener
                 $count = $itemInfo['count'] ?? 1;
 
                 /** @var Item $item */
-                if (isset($itemInfo['enchantment'])) {
-                    $enchantments = $itemInfo['enchantment'];
+                if (isset($itemInfo['enchantments'])) {
+                    $enchantments = $itemInfo['enchantments'];
                     foreach ($enchantments as $enchdata) {
                         $ench = Enchantment::getEnchantment($enchdata['id'] ?? 0);
                         $item->addEnchantment(new EnchantmentInstance($ench, $enchdata['level'] ?? 1));

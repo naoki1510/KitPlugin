@@ -114,7 +114,7 @@ class EventListener implements Listener
                         array_push($changedPos, $pos);
                     } else if ($rblock->getId() === Item::fromString('stained_glass_pane')->getId()) {
                         array_push($changedPos, $pos);
-                        $this->overlapping->set(implode(":", [$pos->x, $pos->y, $pos->z]), Server::getInstance()->getTick() + 10 * 20);
+                        $this->overlapping->set(implode(":", [$pos->x, $pos->y, $pos->z]), Server::getInstance()->getTick() + 6 * 20 - 1);
                     }
                 }
             }
