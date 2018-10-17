@@ -157,7 +157,7 @@ class KitPlugin extends PluginBase implements Listener
         $rank = $this->kit->getNested($kit . '.rank', 0);
         $cost = $this->kit->getNested($kit . '.cost', 0);
         // キットの条件を満たしているか
-        $required = $this->kit->getNested($kit . '.required', 0);
+        $required = $this->kit->getNested($kit . '.required', []);
         $lack = [];
         foreach ($required as $kit => $level) {
             if ($level > $this->getLevel($player, $kit)) {
