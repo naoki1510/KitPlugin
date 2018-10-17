@@ -58,13 +58,11 @@ class KitPlugin extends PluginBase implements Listener
     {
 		// 起動時のメッセージ
         $this->getLogger()->info("§eKitPlugin was loaded.");
-
         $this->saveDefaultConfig();
 		//コンフィグ作成
         $this->playerdata = new Config($this->getDataFolder() . 'PlayerData.yml', Config::YAML);
         $this->saveResource('kit.json');
         $this->kit = new Config($this->getDataFolder() . 'kit.json', Config::JSON);
-
 		// イベントリスナー登録
         $this->getServer()->getPluginManager()->registerEvents($this, $this);
         $this->getServer()->getPluginManager()->registerEvents(new EventListener($this), $this);
@@ -72,7 +70,7 @@ class KitPlugin extends PluginBase implements Listener
 
     public function onDisable()
     {
-        $this->playerdata->save();
+        // $this->playerdata->save();
     }
 
     public function onSignChange(SignChangeEvent $e){
@@ -90,12 +88,10 @@ class KitPlugin extends PluginBase implements Listener
             case Block::WALL_SIGN:
             case Block::SIGN_POST:
                 $sign = $block->getLevel()->getTile($block->asPosition());
-
                 if ($sign instanceof Sign && preg_match('/^(§[0-9a-fklmnor])*\[kit\]$/iu', trim($sign->getLine(0))) == 1) {
                     $this->reloadSign($sign);
                     preg_match('/^(§[0-9a-fklmnor])*(.*)$/u', trim($sign->getLine(1)), $m);
                     $kit = $m[2];
-                    
 			        // Kit名が存在するか
                     if ($this->kit->exists($kit)) {
                         // すでにその職の時はパス
@@ -103,12 +99,10 @@ class KitPlugin extends PluginBase implements Listener
                             $this->setKit($player, $kit);
                             return;
                         } 
-
                         $rank = $this->kit->getNested($kit . '.rank', 0);
                         $cost = $this->kit->getNested($kit . '.cost', 0);
-
                         // 購入済みか、もしくはランク０
-                        if ($this->playerdata->getNested($player->getName() . '.purchased.' . $kit, false) || $rank === 0){
+                        if ($this->isPurchased($player, $kit) || $rank === 0){
                             $this->setKit($player, $kit);
                             $player->sendMessage($kit . 'になりました');
                         }else{
@@ -139,10 +133,8 @@ class KitPlugin extends PluginBase implements Listener
             if (preg_match('/^(§[0-9a-fklmnor])*\[kit\]$/iu', trim($sign->getLine(0))) == 1) {
                 preg_match('/^(§[0-9a-fklmnor])*(.*)$/u', trim($sign->getLine(1)), $m);
                 $kit = $m[2];
-            
 			    // Kit名が存在するか
                 if ($this->kit->exists($kit)) {
-
                     $rank = $this->kit->getNested($kit . '.rank', 0);
                     $cost = $this->kit->getNested($kit . '.cost', 0);
                     $rankcolor = '§' . [7, 6, 'f', 'e', 'b'][$rank];
@@ -154,6 +146,7 @@ class KitPlugin extends PluginBase implements Listener
                 }
             }
         }catch(\BadMethodCallException $e){
+            // $signから文字を変更できなかった時
             $this->getLogger()->warning($e->getMessage());
         }
         
@@ -161,32 +154,45 @@ class KitPlugin extends PluginBase implements Listener
 
     public function buyKit(Player $player, string $kit) : bool{
         if (!$this->kit->exists($kit)) return false;
-
         $rank = $this->kit->getNested($kit . '.rank', 0);
         $cost = $this->kit->getNested($kit . '.cost', 0);
-
-        if (EconomyAPI::getInstance()->myMoney($player) ?? 0 >= $cost) {
-
-            if (empty($this->cue[$player->getName()])) {
-                $this->cue[$player->getName()] = $kit;
-
-                //購入確認フォーム
-                $pk = new ModalFormRequestPacket();
-                $pk->formId = 229028;
-                $form['title'] = $kit . 'を購入しますか？';
-                $form['type'] = 'modal';
-                $form['content'] = $kit . PHP_EOL . '§6$' . $cost . "\n§rRank§l: " . ['§fNormal', '§6Bronze', '§fSilver', '§eGold', '§bPlatinum'][$rank];
-                $form['button1'] = 'Yes';
-                $form['button2'] = 'No';
-                $pk->formData = json_encode($form);
-                $player->dataPacket($pk);
-                return true;
+        // キットの条件を満たしているか
+        $required = $this->kit->getNested($kit . '.required', 0);
+        $lack = [];
+        foreach ($required as $kit => $level) {
+            if ($level > $this->getLevel($player, $kit)) {
+                $lack[$kit] = $level;
             }
-
-        } else {
+        }
+        if (!empty($lack)) {
+            $player->sendMessage($kit . 'を購入できません。');
+            foreach ($lack as $kit => $level) {
+                $player->sendMessage($kit . 'のレベルが' . $level .'に達していません。');
+            }
+            return false;
+        }
+        // お金が足りるか
+        if (EconomyAPI::getInstance()->myMoney($player) ?? 0 < $cost) {
             $player->sendMessage('お金が足りません。');
             return false;
         }
+        // キューが空の時
+        if (empty($this->cue[$player->getName()])) {
+            $this->cue[$player->getName()] = $kit;
+            //購入確認フォーム
+            $pk = new ModalFormRequestPacket();
+            $pk->formId = 229028;
+            $form['title'] = $kit . 'を購入しますか？';
+            $form['type'] = 'modal';
+            $form['content'] = $kit . PHP_EOL . '§6$' . $cost . "\n§rRank§l: " . ['§fNormal', '§6Bronze', '§fSilver', '§eGold', '§bPlatinum'][$rank];
+            $form['button1'] = 'Yes';
+            $form['button2'] = 'No';
+            $pk->formData = json_encode($form);
+            $player->dataPacket($pk);
+            return true;
+        }
+
+        
 
         return false;
     }
@@ -196,11 +202,12 @@ class KitPlugin extends PluginBase implements Listener
         if (!$this->kit->exists($kit)) return false;
         $this->playerdata->setNested($player->getName() . '.now', $kit);
         $this->playerdata->save();
-
+        // アイテム付与
         return $this->giveItems($player, $kit);
     }
 
-    /** パケット受信
+    /** 
+     * パケット受信
      * 今回はフォーム
      */
     public function onRecievePacket(DataPacketReceiveEvent $ev)
@@ -212,18 +219,21 @@ class KitPlugin extends PluginBase implements Listener
                 $data = json_decode($pk->formData, true);
                 if($data === null) return;
                 switch ($data) {
-                    case 0: //true(1)かfalse(0)です
+                    case 0: 
                         $player->sendMessage("購入をキャンセルしました。");
                         break;
 
                     case 1:
                         $kit = $this->cue[$player->getName()];
                         $rank = $this->kit->getNested($kit . '.rank', 0);
-                        $cost = $this->kit->getNested($kit . '.cost', [0, 3000, 5000, 7000, 10000][$rank]);
+                        $cost = $this->kit->getNested($kit . '.cost', 0);
 
                         if (EconomyAPI::getInstance()->reduceMoney($player, $cost) === 1) {
                             $player->sendMessage($kit . "を購入しました。");
-                            $this->playerdata->setNested($player->getName() . '.purchased.' . $kit, true);
+                            // $purchased = $this->playerdata->getNested($player->getName() . '.purchased');
+                            // array_push($purchased, $kit);
+                            //$this->playerdata->setNested($player->getName() . '.purchased.' . $kit, 1);
+                            $this->purchase($player, $kit);
                             $this->setKit($player, $kit);
                         } else {
                             $player->sendMessage('お金が足りません。');
@@ -236,6 +246,9 @@ class KitPlugin extends PluginBase implements Listener
         }
     }
 
+    /**
+     * アイテムを与える
+     */
     public function giveItems(Player $player, string $kit = null) : bool
     {
         $kit = $kit ?? $this->playerdata->getNested($player->getName() . '.now');
@@ -247,7 +260,6 @@ class KitPlugin extends PluginBase implements Listener
         foreach ($data['items'] as $itemInfo) {
             try{
                 $item = Item::fromString($itemInfo['name']);
-                // $item->setCount($itemInfo['count'] ?? 1);
                 $count = $itemInfo['count'] ?? 1;
 
                 /** @var Item $item */
@@ -258,7 +270,7 @@ class KitPlugin extends PluginBase implements Listener
                         $item->addEnchantment(new EnchantmentInstance($ench, $enchdata['level'] ?? 1));
                     }
                 }
-                
+                // 1スタックの量を超える時
                 while ($count > $item->getMaxStackSize()) {
                     array_push($items, clone $item->setCount($item->getMaxStackSize()));
                     $count -= $item->getMaxStackSize();
@@ -308,6 +320,49 @@ class KitPlugin extends PluginBase implements Listener
 
         return true;
     }
+    
+    /**
+     * 購入されているか
+     */
+    public function isPurchased(Player $player, string $kit) {
+        return !empty($this->getLevel($player, $kit));
+    }
+    
+    /** 
+     * 購入処理
+     */
+    public function purchase(Player $player, string $kit) {
+        if (!$this->isPurchased($player, $kit)) {
+            $this->playerdata->setNested($player->getName() . '.purchased.' . $kit, 1);
+        }
+    }
+    
+    /** 
+     * レベルを取得 
+     * @return int|null
+     */
+    public function getLevel(Player $player, string $kit) {
+        $purchased = $this->playerdata->getNested($player->getName() . 'purchased');
+        foreach ($purchased as $pkit => $level) {
+            if ($kit === $pkit) {
+                return $level ?: null;
+            }
+        }
+        return null;
+    }
+    
+    /** レベルアップ */
+    public function addLevel(Player $player, string $kit, int $level = 1) {
+        if (!$this->isPurchased($player, $kit)) return false;
+        
+        $lv = $this->getLevel($player, $kit) + $level;
+        $this->setLevel($player, $kit, $lv);
+    }
+    
+    /** レベルを設定 */
+    public function setLevel(Player $player, string $kit, int $level) {
+        $this->playerdata->setNested($player->getName() . '.purchased.' . $kit, $level);
+    }
 
     /** ショップ内での発射禁止 */
     public function onLaunchProjectile(PlayerItemUseEvent $e){
@@ -315,6 +370,7 @@ class KitPlugin extends PluginBase implements Listener
         //$e->getPlayer()->sendMessage("ここではアイテムは使えません。" . $e->getPlayer()->getLevel()->getName());
     }
 
+    /** ショップでのドロップ禁止 */
     public function onDrop(PlayerDropItemEvent $e){
         if (in_array($e->getPlayer()->getLevel()->getName(), $this->getConfig()->get('shopworlds', []))) $e->setCancelled();
     }
@@ -325,6 +381,7 @@ class KitPlugin extends PluginBase implements Listener
         $this->giveItems($player);
     }
 
+    /** ワールド間テレポートした時 */
     public function onTeleportWorld(EntityLevelChangeEvent $e)
     {
         //Playerなどイベント関連情報を取得
