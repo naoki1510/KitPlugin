@@ -16,11 +16,14 @@ use pocketmine\Server;
 use pocketmine\block\Block;
 use pocketmine\command\Command;
 use pocketmine\command\CommandSender;
+use pocketmine\entity\Effect;
+use pocketmine\entity\EffectInstance;
 use pocketmine\event\Listener;
 use pocketmine\event\block\SignChangeEvent;
 use pocketmine\event\entity\EntityDamageEvent;
 use pocketmine\event\entity\EntityLevelChangeEvent;
 use pocketmine\event\entity\ProjectileLaunchEvent;
+use pocketmine\event\player\PlayerDropItemEvent;
 use pocketmine\event\player\PlayerInteractEvent;
 use pocketmine\event\player\PlayerItemUseEvent;
 use pocketmine\event\player\PlayerRespawnEvent;
@@ -88,23 +91,26 @@ class KitPlugin extends PluginBase implements Listener
             case Block::SIGN_POST:
                 $sign = $block->getLevel()->getTile($block->asPosition());
 
-                if ($sign instanceof Sign && preg_match('/^(§[0-9a-f])*\[kit\]$/iu', trim($sign->getLine(0))) == 1) {
-                    preg_match('/^(§[0-9a-f])*(.*)$/u', trim($sign->getLine(1)), $m);
+                if ($sign instanceof Sign && preg_match('/^(§[0-9a-fklmnor])*\[kit\]$/iu', trim($sign->getLine(0))) == 1) {
+                    $this->reloadSign($sign);
+                    preg_match('/^(§[0-9a-fklmnor])*(.*)$/u', trim($sign->getLine(1)), $m);
                     $kit = $m[2];
                     
 			        // Kit名が存在するか
                     if ($this->kit->exists($kit)) {
                         // すでにその職の時はパス
-                        if ($this->playerdata->getNested($player->getName() . '.now', '') === $kit) return;
+                        if ($this->playerdata->getNested($player->getName() . '.now', '') === $kit){
+                            $this->setKit($player, $kit);
+                            return;
+                        } 
 
                         $rank = $this->kit->getNested($kit . '.rank', 0);
-                        $cost = $this->kit->getNested($kit . '.cost', [0, 3000, 5000, 7000, 10000][$rank]);
-                        $this->reloadSign($sign);
+                        $cost = $this->kit->getNested($kit . '.cost', 0);
 
                         // 購入済みか、もしくはランク０
                         if ($this->playerdata->getNested($player->getName() . '.purchased.' . $kit, false) || $rank === 0){
                             $this->setKit($player, $kit);
-                            $player->sendMessage('You are now ' . $kit);
+                            $player->sendMessage($kit . 'になりました');
                         }else{
                             // Kit購入
                             $this->buyKit($player, $kit);
@@ -113,6 +119,10 @@ class KitPlugin extends PluginBase implements Listener
                         $player->sendMessage('キットが見つかりません');
                     }
                 }
+                break;
+
+            case Block::EMERALD_BLOCK:
+                $this->giveItems($player);
                 break;
 
             default:
@@ -126,19 +136,19 @@ class KitPlugin extends PluginBase implements Listener
     public function reloadSign($sign)
     {
         try{
-            if (preg_match('/^(§[0-9a-f])*\[kit\]$/iu', trim($sign->getLine(0))) == 1) {
-                preg_match('/^(§[0-9a-f])*(.*)$/u', trim($sign->getLine(1)), $m);
+            if (preg_match('/^(§[0-9a-fklmnor])*\[kit\]$/iu', trim($sign->getLine(0))) == 1) {
+                preg_match('/^(§[0-9a-fklmnor])*(.*)$/u', trim($sign->getLine(1)), $m);
                 $kit = $m[2];
             
 			    // Kit名が存在するか
                 if ($this->kit->exists($kit)) {
 
                     $rank = $this->kit->getNested($kit . '.rank', 0);
-                    $cost = $this->kit->getNested($kit . '.cost', [0, 3000, 5000, 7000, 10000][$rank]);
-                    $rankcolor = '§' . [0, 6, 'f', 'e', 'b'][$rank];
+                    $cost = $this->kit->getNested($kit . '.cost', 0);
+                    $rankcolor = '§' . [7, 6, 'f', 'e', 'b'][$rank];
 
                     $sign->setLine(0, '§a[Kit]');
-                    $sign->setLine(1, $rankcolor . $kit);
+                    $sign->setLine(1, '§l' . $rankcolor . $kit);
                     $sign->setLine(2, '§c$' . $cost);
                     $sign->setLine(3, $rankcolor . ['Normal', 'Bronze', 'Silver', 'Gold', 'Platinum'][$rank]);
                 }
@@ -153,7 +163,7 @@ class KitPlugin extends PluginBase implements Listener
         if (!$this->kit->exists($kit)) return false;
 
         $rank = $this->kit->getNested($kit . '.rank', 0);
-        $cost = $this->kit->getNested($kit . '.cost', [0, 3000, 5000, 7000, 10000][$rank]);
+        $cost = $this->kit->getNested($kit . '.cost', 0);
 
         if (EconomyAPI::getInstance()->myMoney($player) ?? 0 >= $cost) {
 
@@ -185,6 +195,7 @@ class KitPlugin extends PluginBase implements Listener
     {
         if (!$this->kit->exists($kit)) return false;
         $this->playerdata->setNested($player->getName() . '.now', $kit);
+        $this->playerdata->save();
 
         return $this->giveItems($player, $kit);
     }
@@ -278,6 +289,15 @@ class KitPlugin extends PluginBase implements Listener
             }
         }
 
+        $player->removeAllEffects();
+        
+        foreach ($data['effects'] ?? [] as $slot => $effectInfo) {
+            $player->removeAllEffects();
+            $effect = Effect::getEffect($effectInfo['id'] ?? 1);
+            $player->addEffect(new EffectInstance($effect, $effectInfo['duration'] ?? 2147483647, $effectInfo['amplification'] ?? $effectInfo['amp'] ?? 0, $effectInfo['visible'] ?? false));
+        }
+
+
         $player->getInventory()->setContents($items);
 
         return true;
@@ -287,6 +307,10 @@ class KitPlugin extends PluginBase implements Listener
     public function onLaunchProjectile(PlayerItemUseEvent $e){
         if(in_array($e->getPlayer()->getLevel()->getName(), $this->getConfig()->get('shopworlds', []))) $e->setCancelled();
         //$e->getPlayer()->sendMessage("ここではアイテムは使えません。" . $e->getPlayer()->getLevel()->getName());
+    }
+
+    public function onDrop(PlayerDropItemEvent $e){
+        if (in_array($e->getPlayer()->getLevel()->getName(), $this->getConfig()->get('shopworlds', []))) $e->setCancelled();
     }
 
     /** リスポーン時にアイテム配布 */

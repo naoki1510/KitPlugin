@@ -61,44 +61,6 @@ class EventListener implements Listener
         return Server::getInstance();
     }
 
-    public function reload(Player $player, Item $item, $delay = null, $force = false)
-    {
-        $count = 0;
-        $delay = $delay ?? 0;
-        $kit = $this->playerdata->getNested($player->getName() . '.now');
-        if (!$this->kit->exists($kit)) return false;
-
-        $data = $this->kit->get($kit);
-        $max = 0;
-
-        foreach ($data['items'] as $itemInfo) {
-            try {
-                $ritem = Item::fromString($itemInfo['name']);
-                if ($ritem->getId() === $item->getId()) {
-                    $max += $itemInfo['count'] ?? 1;
-                }
-            } catch (\InvalidArgumentException $e) {
-                $this->getLogger()->warning($e->getMessage());
-            }
-        }
-        foreach ($player->getInventory()->getContents() as $slot => $invitem) {
-            if ($invitem->getId() === $item->getId() && $invitem->getDamage() === $item->getDamage()) {
-                $count += $invitem->getCount();
-                if ($force) $player->getInventory()->setItem($slot, Item::get(0));
-            }
-        }
-        if ($count < $max || $force) {
-            $this->scheduler->scheduleDelayedTask(new RestoreItemTask(
-                $item,
-                $player
-            ), $delay);
-            if (empty($this->reloading[$player->getName()]) || $this->reloading[$player->getName()] < Server::getInstance()->getTick()) {
-                $player->sendMessage('Reloading...');
-                $this->reloading[$player->getName()] = Server::getInstance()->getTick() + $delay;
-            }
-        }
-    }
-
     /* Bow and Arrow */
     public function onHit(ProjectileHitEntityEvent $e)
     {
@@ -106,41 +68,9 @@ class EventListener implements Listener
         if ($entity instanceof Arrow) {
             if (($shooter = $entity->getOwningEntity()) instanceof Player) {
                 $distance = $e->getEntityHit()->distance($shooter);
-                $damage = 2 + $distance / 16;
+                $damage = 2 + $distance / 8;
                 $entity->setBaseDamage($damage);
             }
-        }
-    }
-
-    public function onPlayerTap(PlayerInteractEvent $e)
-    {
-        $player = $e->getPlayer();
-        /** @var Item $hand */
-        $hand = $player->getInventory()->getItemInHand();
-        switch ($hand->getId()) {
-            case Item::BOW:
-                $kit = $this->playerdata->getNested($player->getName() . '.now');
-                if (!$this->kit->exists($kit)) return false;
-
-                $data = $this->kit->get($kit);
-                $count = 0;
-
-                foreach ($data['items'] as $itemInfo) {
-                    try {
-                        $item = Item::fromString($itemInfo['name']);
-                        if ($item->getId() === Item::ARROW) {
-                            $count += $itemInfo['count'] ?? 1;
-                        }
-                    } catch (\InvalidArgumentException $e) {
-                        $this->getLogger()->warning($e->getMessage());
-                    }
-                }
-                $item = Item::fromString('Arrow')->setCount($count);
-
-                $this->reload($player, $item, 8 * 20);
-
-                $e->setCancelled();
-                break;
         }
     }
 
@@ -158,45 +88,6 @@ class EventListener implements Listener
                     $e->setCancelled();
                 }
             }
-        }
-    }
-
-    public function onItemUse(PlayerItemUseEvent $e)
-    {
-        // Reload Items
-        $player = $e->getPlayer();
-        /** @var Item $hand */
-        $hand = $player->getInventory()->getItemInHand();
-        switch ($hand->getId()) {
-            case Item::SNOWBALL:
-                $kit = $this->playerdata->getNested($player->getName() . '.now');
-                if (!$this->kit->exists($kit)) return false;
-
-                $data = $this->kit->get($kit);
-                $count = 0;
-
-                foreach ($data['items'] as $itemInfo) {
-                    try {
-                        $item = Item::fromString($itemInfo['name']);
-                        if ($item->getId() === Item::SNOWBALL) {
-                            $count += $itemInfo['count'] ?? 1;
-                        }
-                    } catch (\InvalidArgumentException $e) {
-                        $this->getLogger()->warning($e->getMessage());
-                    }
-                }
-                $item = Item::fromString('snowball')->setCount($count);
-
-                $count = 0;
-                foreach ($player->getInventory()->getContents() as $invitem) {
-                    if ($invitem->getId() === $item->getId() && $invitem->getDamage() === $item->getDamage()) {
-                        $count += $invitem->getCount();
-                    }
-                }
-                if ($count <= 4) {
-                    $this->reload($player, $item);
-                }
-                break;
         }
     }
 
@@ -234,7 +125,6 @@ class EventListener implements Listener
                 new BlockRecoveryTask($changedPos, $player->getLevel(), $this->overlapping),
                 6 * 20
             );
-            $this->reload($player, $block->getItem(), 20 * 10);
         }
     }
 }
