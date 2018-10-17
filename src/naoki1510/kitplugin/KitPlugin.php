@@ -248,7 +248,7 @@ class KitPlugin extends PluginBase implements Listener
             try{
                 $item = Item::fromString($itemInfo['name']);
                 // $item->setCount($itemInfo['count'] ?? 1);
-                $count = itemInfo['count'] ?? 1;
+                $count = $itemInfo['count'] ?? 1;
 
                 /** @var Item $item */
                 if (isset($itemInfo['enchantment'])) {
