@@ -247,7 +247,8 @@ class KitPlugin extends PluginBase implements Listener
         foreach ($data['items'] as $itemInfo) {
             try{
                 $item = Item::fromString($itemInfo['name']);
-                $item->setCount($itemInfo['count'] ?? 1);
+                // $item->setCount($itemInfo['count'] ?? 1);
+                $count = itemInfo['count'] ?? 1;
 
                 /** @var Item $item */
                 if (isset($itemInfo['enchantment'])) {
@@ -257,8 +258,13 @@ class KitPlugin extends PluginBase implements Listener
                         $item->addEnchantment(new EnchantmentInstance($ench, $enchdata['level'] ?? 1));
                     }
                 }
+                
+                while ($count > $item->getMaxStackSize()) {
+                    array_push($items, clone $item->setCount($item->getMaxStackSize()));
+                    $count -= $item->getMaxStackSize();
+                }
 
-                array_push($items, $item);
+                array_push($items, $item->setCount($count));
             }catch(\InvalidArgumentException $e){
                 $this->getLogger()->warning($e->getMessage());
             }
