@@ -172,7 +172,7 @@ class KitPlugin extends PluginBase implements Listener
             return false;
         }
         // お金が足りるか
-        if (EconomyAPI::getInstance()->myMoney($player) ?? 0 < $cost) {
+        if ((EconomyAPI::getInstance()->myMoney($player) ?? 0) < $cost) {
             $player->sendMessage('お金が足りません。');
             return false;
         }
