@@ -2,6 +2,7 @@
 
 namespace naoki1510\kitplugin;
 
+/** @todo remove not to use. */
 use naoki1510\kitplugin\EventListener;
 use naoki1510\kitplugin\KitPlugin;
 use naoki1510\kitplugin\mainweapons\BowWeapon;
@@ -20,9 +21,11 @@ use pocketmine\entity\Effect;
 use pocketmine\entity\EffectInstance;
 use pocketmine\event\Listener;
 use pocketmine\event\block\SignChangeEvent;
+use pocketmine\event\entity\EntityDamageByEntityEvent;
 use pocketmine\event\entity\EntityDamageEvent;
 use pocketmine\event\entity\EntityLevelChangeEvent;
 use pocketmine\event\entity\ProjectileLaunchEvent;
+use pocketmine\event\player\PlayerDeathEvent;
 use pocketmine\event\player\PlayerDropItemEvent;
 use pocketmine\event\player\PlayerInteractEvent;
 use pocketmine\event\player\PlayerItemUseEvent;
@@ -49,7 +52,7 @@ class KitPlugin extends PluginBase implements Listener
     public $playerdata;
 
     /** @var Weapon[] */
-    private $listeners;
+    //private $listeners;
 
     /** @var string[] */
     private $cue = [];
@@ -72,50 +75,57 @@ class KitPlugin extends PluginBase implements Listener
     {
         // $this->playerdata->save();
     }
-
-    public function onSignChange(SignChangeEvent $e){
-        $this->reloadSign($e);
-    }
+    
+    /* 購入処理系 */
 
     public function onPlayerTap(PlayerInteractEvent $e)
     {
         $player = $e->getPlayer();
+        // スニークしてる時はパス
         if($player->isSneaking()) return;
 
         $block = $e->getBlock();
         switch ($block->getId()) {
-            // 看板
+            // 看板のID
             case Block::WALL_SIGN:
             case Block::SIGN_POST:
                 $sign = $block->getLevel()->getTile($block->asPosition());
-                if ($sign instanceof Sign && preg_match('/^(§[0-9a-fklmnor])*\[kit\]$/iu', trim($sign->getLine(0))) == 1) {
-                    $this->reloadSign($sign);
-                    preg_match('/^(§[0-9a-fklmnor])*(.*)$/u', trim($sign->getLine(1)), $m);
-                    $kit = $m[2];
-			        // Kit名が存在するか
-                    if ($this->kit->exists($kit)) {
-                        // すでにその職の時はパス
-                        if ($this->playerdata->getNested($player->getName() . '.now', '') === $kit){
-                            $this->setKit($player, $kit);
-                            return;
-                        } 
-                        $rank = $this->kit->getNested($kit . '.rank', 0);
-                        $cost = $this->kit->getNested($kit . '.cost', 0);
-                        // 購入済みか、もしくはランク０
-                        if ($this->isPurchased($player, $kit) || $rank === 0){
-                            $this->setKit($player, $kit);
-                            $player->sendMessage($kit . 'になりました');
-                        }else{
-                            // Kit購入
-                            $this->buyKit($player, $kit);
-                        }
-                    } else {
-                        $player->sendMessage('キットが見つかりません');
-                    }
+                // 看板の取得に失敗した時
+                if (!$sign instanceof Sign) return;
+                // 1行目がKitじゃない時
+                if(preg_match('/^(§[0-9a-fklmnor])*\[kit\]$/iu', trim($sign->getLine(0))) != 1) return;
+                // 看板の文字の再読み込み
+                $this->reloadSign($sign);
+                // キット名の取得
+                preg_match('/^(§[0-9a-fklmnor])*(.*)$/u', trim($sign->getLine(1)), $m);
+                $kit = $m[2];
+		        // Kit名が存在するか
+                if (!$this->kit->exists($kit)){
+                    $player->sendMessage('キットが見つかりません');
+                    continue;
                 }
+                // すでにその職の時はパス
+                if ($this->playerdata->getNested($player->getName() . '.now', '') === $kit){
+                    $this->setKit($player, $kit);
+                    continue;
+                } 
+                // ランク、コストをConfigから取得
+                $rank = $this->kit->getNested($kit . '.rank', 0);
+                $cost = $this->kit->getNested($kit . '.cost', 0);
+                // 購入済みか、もしくはランク０
+                if ($this->isPurchased($player, $kit) || $rank === 0){
+                    // キット情報の設定
+                    $this->setKit($player, $kit);
+                    $player->sendMessage($kit . 'になりました');
+                }else{
+                    // Kit購入
+                    $this->buyKit($player, $kit);
+                }
+                
                 break;
 
             case Block::EMERALD_BLOCK:
+                // アイテム付与
                 $this->giveItems($player);
                 break;
 
@@ -123,7 +133,12 @@ class KitPlugin extends PluginBase implements Listener
                 return;
                 break;
         }
+        // ブロック配置の防止
         $e->setCancelled();
+    }
+
+    public function onSignChange(SignChangeEvent $e){
+        $this->reloadSign($e);
     }
 
     /** @param SignChangeEvent|Sign $sign */
@@ -152,6 +167,7 @@ class KitPlugin extends PluginBase implements Listener
         
     }
 
+    /** キット購入 */
     public function buyKit(Player $player, string $kit) : bool{
         if (!$this->kit->exists($kit)) return false;
         $rank = $this->kit->getNested($kit . '.rank', 0);
@@ -195,19 +211,7 @@ class KitPlugin extends PluginBase implements Listener
             $player->dataPacket($pk);
             return true;
         }
-
-        
-
         return false;
-    }
-
-    public function setKit(Player $player, string $kit) : bool
-    {
-        if (!$this->kit->exists($kit)) return false;
-        $this->playerdata->setNested($player->getName() . '.now', $kit);
-        $this->playerdata->save();
-        // アイテム付与
-        return $this->giveItems($player, $kit);
     }
 
     /** 
@@ -218,36 +222,35 @@ class KitPlugin extends PluginBase implements Listener
     {
         $pk = $ev->getPacket();
         $player = $ev->getPlayer();
-        if ($pk instanceof ModalFormResponsePacket) {
-            if ($pk->formId === 229028) { 
-                $data = json_decode($pk->formData, true);
-                if($data === null) return;
-                switch ($data) {
-                    case 0: 
-                        $player->sendMessage("購入をキャンセルしました。");
-                        break;
+        
+        if (!$pk instanceof ModalFormResponsePacket) return;
+        if ($pk->formId !== 229028) return;
+        
+        $data = json_decode($pk->formData, true);
+        if($data === null) return;
+        switch ($data) {
+            case 0: 
+                $player->sendMessage("購入をキャンセルしました。");
+                break;
 
-                    case 1:
-                        $kit = $this->cue[$player->getName()];
-                        $rank = $this->kit->getNested($kit . '.rank', 0);
-                        $cost = $this->kit->getNested($kit . '.cost', 0);
+            case 1:
+                $kit = $this->cue[$player->getName()];
+                $rank = $this->kit->getNested($kit . '.rank', 0);
+                $cost = $this->kit->getNested($kit . '.cost', 0);
 
-                        if (EconomyAPI::getInstance()->reduceMoney($player, $cost) === 1) {
-                            $player->sendMessage($kit . "を購入しました。");
-                            // $purchased = $this->playerdata->getNested($player->getName() . '.purchased');
-                            // array_push($purchased, $kit);
-                            //$this->playerdata->setNested($player->getName() . '.purchased.' . $kit, 1);
-                            $this->purchase($player, $kit);
-                            $this->setKit($player, $kit);
-                        } else {
-                            $player->sendMessage('お金が足りません。');
-                        }
-                        break;
+                if (EconomyAPI::getInstance()->reduceMoney($player, $cost) === 1) {
+                    $player->sendMessage($kit . "を購入しました。");
+                    // $purchased = $this->playerdata->getNested($player->getName() . '.level');
+                    // array_push($purchased, $kit);
+                    // $this->playerdata->setNested($player->getName() . '.level.' . $kit, 1);
+                    $this->purchase($player, $kit);
+                    $this->setKit($player, $kit);
+                } else {
+                    $player->sendMessage('お金が足りません。');
                 }
-
-                $this->cue[$player->getName()] = null;
-            }
+                break;
         }
+        $this->cue[$player->getName()] = null;
     }
 
     /**
@@ -260,7 +263,7 @@ class KitPlugin extends PluginBase implements Listener
 
         $data = $this->kit->get($kit);
         $items = [];
-
+        // アイテム
         foreach ($data['items'] as $itemInfo) {
             try{
                 $item = Item::fromString($itemInfo['name']);
@@ -279,17 +282,17 @@ class KitPlugin extends PluginBase implements Listener
                     array_push($items, clone $item->setCount($item->getMaxStackSize()));
                     $count -= $item->getMaxStackSize();
                 }
-
                 array_push($items, $item->setCount($count));
             }catch(\InvalidArgumentException $e){
                 $this->getLogger()->warning($e->getMessage());
             }
         }
-
+        //アイテムをセット
+        $player->getInventory()->setContents($items);
+        // 装備
         foreach ($data['armor'] as $slot => $armorInfo) {
             try {
                 $item = Item::fromString($armorInfo['name']);
-
                 /** @var Item $item */
                 if (isset($armorInfo['enchantment'])) {
                     $enchantments = $armorInfo['enchantment'];
@@ -298,31 +301,37 @@ class KitPlugin extends PluginBase implements Listener
                         $item->addEnchantment(new EnchantmentInstance($ench, $enchdata['level'] ?? 1));
                     }
                 }
-
                 try{
                     $slot = $item->getArmorSlot();
                     $player->getArmorInventory()->setItem($slot, $item);
                 }catch(\BadMethodCallException $e){
+                    // getArmorSlotに失敗した時
                     $this->getLogger()->warning($e->getMessage());
                 }
-
             } catch (\InvalidArgumentException $e) {
+                // アイテムの取得に失敗した時
                 $this->getLogger()->warning($e->getMessage());
             }
         }
-
+        // エフェクト
         $player->removeAllEffects();
-        
         foreach ($data['effects'] ?? [] as $slot => $effectInfo) {
-            $player->removeAllEffects();
             $effect = Effect::getEffect($effectInfo['id'] ?? 1);
             $player->addEffect(new EffectInstance($effect, $effectInfo['duration'] ?? 2147483647, $effectInfo['amplification'] ?? $effectInfo['amp'] ?? 0, $effectInfo['visible'] ?? false));
         }
-
-
-        $player->getInventory()->setContents($items);
-
         return true;
+    }
+
+    /** 
+     * キットを設定 
+     */
+    public function setKit(Player $player, string $kit) : bool
+    {
+        if (!$this->kit->exists($kit)) return false;
+        $this->playerdata->setNested($player->getName() . '.now', $kit);
+        $this->playerdata->save();
+        // アイテム付与
+        return $this->giveItems($player, $kit);
     }
     
     /**
@@ -337,7 +346,7 @@ class KitPlugin extends PluginBase implements Listener
      */
     public function purchase(Player $player, string $kit) {
         if (!$this->isPurchased($player, $kit)) {
-            $this->playerdata->setNested($player->getName() . '.purchased.' . $kit, 1);
+            $this->playerdata->setNested($player->getName() . '.level.' . $kit, 1);
         }
     }
     
@@ -345,8 +354,8 @@ class KitPlugin extends PluginBase implements Listener
      * レベルを取得 
      * @return int|null
      */
-    public function getLevel(Player $player, string $kit) {
-        $purchased = $this->playerdata->getNested($player->getName() . '.purchased', []);
+    public function getLevel(Player $player, string $kit) : int{
+        $purchased = $this->playerdata->getNested($player->getName() . '.level', []);
         foreach ($purchased as $pkit => $level) {
             if ($kit === $pkit) {
                 return $level ?: null;
@@ -356,22 +365,51 @@ class KitPlugin extends PluginBase implements Listener
     }
     
     /** レベルアップ */
-    public function addLevel(Player $player, string $kit, int $level = 1) {
+    public function addLevel(Player $player, string $kit = null, int $level = 1) {
+        $kit = $kit ?? $this->playerdata->getNested($player->getName() . '.now');
         if (!$this->isPurchased($player, $kit)) return false;
         
         $lv = $this->getLevel($player, $kit) + $level;
         $this->setLevel($player, $kit, $lv);
+        return true;
     }
     
     /** レベルを設定 */
-    public function setLevel(Player $player, string $kit, int $level) {
-        $this->playerdata->setNested($player->getName() . '.purchased.' . $kit, $level);
+    public function setLevel(Player $player, ?string $kit = null, int $level) {
+        $kit = $kit ?? $this->playerdata->getNested($player->getName() . '.now');
+        $this->playerdata->setNested($player->getName() . '.level.' . $kit, $level);
+    }
+    
+    /** 経験値を取得 */
+    public function getExp(Player $player, ?string $kit = null) : int{
+        $kit = $kit ?? $this->playerdata->getNested($player->getName() . '.now');
+        $this->playerdata->getNested($player->getName() . '.exp.' . $kit, 0);
+    }
+    
+    /** 経験値を設定 **/
+    public function setExp(Player $player, ?string $kit = null, int $exp = 0) {
+        $kit = $kit ?? $this->playerdata->getNested($player->getName() . '.now');
+        $lv = $this->playerdata->getNested($player->getName() . '.level.' . $kit, 0);
+        $need = 1000 + $lv * 200;
+        if ($need < $exp) {
+            $this->addLevel($player);
+            $this->setExp($player, $kit, $lv - $need);
+            
+        }
+    }
+    
+    /** 経験値を追加 */
+    public function addExp(Player $player, ?string $kit = null, int $exp = 0) {
+        $kit = $kit ?? $this->playerdata->getNested($player->getName() . '.now');
+        $exp = $this->playerdata->getNested($player->getName() . '.exp.' . $kit, 0) + $exp;
+        $this->setExp($exp);
     }
 
     /** ショップ内での発射禁止 */
     public function onLaunchProjectile(PlayerItemUseEvent $e){
-        if(in_array($e->getPlayer()->getLevel()->getName(), $this->getConfig()->get('shopworlds', []))) $e->setCancelled();
-        //$e->getPlayer()->sendMessage("ここではアイテムは使えません。" . $e->getPlayer()->getLevel()->getName());
+        if(!in_array($e->getPlayer()->getLevel()->getName(), $this->getConfig()->get('shopworlds', []))) return;
+        $e->setCancelled();
+        $e->getPlayer()->sendMessage("ここではアイテムは使えません。" . $e->getPlayer()->getLevel()->getName());
     }
 
     /** ショップでのドロップ禁止 */
@@ -399,6 +437,16 @@ class KitPlugin extends PluginBase implements Listener
         if (\in_array($target->getName(), $this->getConfig()->get('gameworlds', []))) {
             // moving into GameWorld
             $this->giveItems($player);
+        }
+    }
+    
+    /** 経験値加算 */
+    public function onDeath(PlayerDeathEvent $e) {
+        $victim = $e->getPlayer();
+        $lastDamage = $victim->getLastDamageCause();
+        if ($lastDamage instanceof EntityDamageByEntityEvent) {
+            $killer = $lastDamage->getDamager();
+            $this->addExp($killer, null, 200);
         }
     }
 }
