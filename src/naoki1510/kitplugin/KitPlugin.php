@@ -330,6 +330,7 @@ class KitPlugin extends PluginBase implements Listener
         if (!$this->kit->exists($kit)) return false;
         $this->playerdata->setNested($player->getName() . '.now', $kit);
         $this->playerdata->save();
+        $this->sendExp($player, $kit);
         // アイテム付与
         return $this->giveItems($player, $kit);
     }
@@ -354,7 +355,7 @@ class KitPlugin extends PluginBase implements Listener
      * レベルを取得 
      * @return int|null
      */
-    public function getLevel(Player $player, string $kit) : int{
+    public function getLevel(Player $player, string $kit) : ?int{
         $purchased = $this->playerdata->getNested($player->getName() . '.level', []);
         foreach ($purchased as $pkit => $level) {
             if ($kit === $pkit) {
@@ -378,6 +379,7 @@ class KitPlugin extends PluginBase implements Listener
     public function setLevel(Player $player, ?string $kit = null, int $level) {
         $kit = $kit ?? $this->playerdata->getNested($player->getName() . '.now');
         $this->playerdata->setNested($player->getName() . '.level.' . $kit, $level);
+        $player->setXpLevel($level);
     }
     
     /** 経験値を取得 */
@@ -394,15 +396,24 @@ class KitPlugin extends PluginBase implements Listener
         if ($need < $exp) {
             $this->addLevel($player);
             $this->setExp($player, $kit, $lv - $need);
-            
         }
+        $player->setXpProgress($lv / $need);
     }
     
     /** 経験値を追加 */
     public function addExp(Player $player, ?string $kit = null, int $exp = 0) {
         $kit = $kit ?? $this->playerdata->getNested($player->getName() . '.now');
         $exp = $this->playerdata->getNested($player->getName() . '.exp.' . $kit, 0) + $exp;
-        $this->setExp($exp);
+        $this->setExp($player, $exp);
+    }
+
+    public function sendExp(Player $player,?string $kit = null){
+        $kit = $kit ?? $this->playerdata->getNested($player->getName() . '.now');
+        $lv = $this->playerdata->getNested($player->getName() . '.level.' . $kit, 0);
+        $player->setXpLevel($lv);
+        $exp = $this->playerdata->getNested($player->getName() . '.exp.' . $kit, 0);
+        $need = 1000 + $lv * 200;
+        $player->setXpProgress($exp / $need);
     }
 
     /** ショップ内での発射禁止 */
