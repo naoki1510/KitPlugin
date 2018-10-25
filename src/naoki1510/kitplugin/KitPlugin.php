@@ -66,6 +66,9 @@ class KitPlugin extends PluginBase implements Listener
         $this->playerdata = new Config($this->getDataFolder() . 'PlayerData.yml', Config::YAML);
         $this->saveResource('kit.json');
         $this->kit = new Config($this->getDataFolder() . 'kit.json', Config::JSON);
+        if(empty($this->kit->getAll())){
+            $this->getLogger()->warning('kit is empty. Is there any error in the kit.json file?');
+        }
 		// イベントリスナー登録
         $this->getServer()->getPluginManager()->registerEvents($this, $this);
         $this->getServer()->getPluginManager()->registerEvents(new EventListener($this), $this);
@@ -73,7 +76,7 @@ class KitPlugin extends PluginBase implements Listener
 
     public function onDisable()
     {
-        // $this->playerdata->save();
+        $this->playerdata->save();
     }
     
     /* 購入処理系 */
@@ -256,7 +259,7 @@ class KitPlugin extends PluginBase implements Listener
     /**
      * アイテムを与える
      */
-    public function giveItems(Player $player, string $kit = null) : bool
+    public function setItems(Player $player, string $kit = null) : bool
     {
         $kit = $kit ?? $this->playerdata->getNested($player->getName() . '.now');
         if (!$this->kit->exists($kit)) return false;
@@ -322,6 +325,82 @@ class KitPlugin extends PluginBase implements Listener
         return true;
     }
 
+
+    public function giveItems(Player $player, string $kit = null) : bool
+    {
+        $kit = $kit ?? $this->playerdata->getNested($player->getName() . '.now');
+        if (!$this->kit->exists($kit)) return false;
+
+        $data = $this->kit->get($kit);
+        $items = [];
+        // アイテム
+        foreach ($data['items'] as $itemInfo) {
+            try {
+                $item = Item::fromString($itemInfo['name']);
+                $count = $itemInfo['count'] ?? 1;
+
+                /** @var Item $item */
+                if (isset($itemInfo['enchantments'])) {
+                    $enchantments = $itemInfo['enchantments'];
+                    foreach ($enchantments as $enchdata) {
+                        $ench = Enchantment::getEnchantment($enchdata['id'] ?? 0);
+                        $item->addEnchantment(new EnchantmentInstance($ench, $enchdata['level'] ?? 1));
+                    }
+                }
+                
+                foreach ($player->getInventory()->getContents() as $invitem) {
+                    if ($invitem->getId() === $item->getId() && $invitem->getDamage() === $item->getDamage()) {
+                        $count -= $invitem->getCount();
+                    }
+                }
+
+                while ($count > 0) {
+                    $player->getInventory()->addItem(clone $item->setCount(min($item->getMaxStackSize(), $count)));
+                    $count -= $item->getMaxStackSize();
+                }
+            } catch (\InvalidArgumentException $e) {
+                $this->getLogger()->warning($e->getMessage());
+            }
+        }
+        // 装備
+        foreach ($data['armor'] as $slot => $armorInfo) {
+            try {
+                $item = Item::fromString($armorInfo['name']);
+                /** @var Item $item */
+                if (isset($armorInfo['enchantment'])) {
+                    $enchantments = $armorInfo['enchantment'];
+                    foreach ($enchantments as $enchdata) {
+                        $ench = Enchantment::getEnchantment($enchdata['id'] ?? 0);
+                        $item->addEnchantment(new EnchantmentInstance($ench, $enchdata['level'] ?? 1));
+                    }
+                }
+                try {
+                    $slot = $item->getArmorSlot();
+                    if($player->getArmorInventory()->getItem($slot) instanceof Armor && $item instanceof Armor){
+                        $armor = $player->getArmorInventory()->getItem($slot);
+                        if($armor->getEnchantability() < $item->getEnchantability()){
+                            continue;
+                        }
+                    }
+                    $player->getArmorInventory()->setItem($slot, $item);
+                } catch (\BadMethodCallException $e) {
+                    // getArmorSlotに失敗した時
+                    $this->getLogger()->warning($e->getMessage());
+                }
+            } catch (\InvalidArgumentException $e) {
+                // アイテムの取得に失敗した時
+                $this->getLogger()->warning($e->getMessage());
+            }
+        }
+        // エフェクト
+        $player->removeAllEffects();
+        foreach ($data['effects'] ?? [] as $slot => $effectInfo) {
+            $effect = Effect::getEffect($effectInfo['id'] ?? 1);
+            $player->addEffect(new EffectInstance($effect, $effectInfo['duration'] ?? 2147483647, $effectInfo['amplification'] ?? $effectInfo['amp'] ?? 0, $effectInfo['visible'] ?? false));
+        }
+        return true;
+    }
+
     /** 
      * キットを設定 
      */
@@ -332,7 +411,7 @@ class KitPlugin extends PluginBase implements Listener
         $this->playerdata->save();
         $this->sendExp($player, $kit);
         // アイテム付与
-        return $this->giveItems($player, $kit);
+        return $this->setItems($player, $kit);
     }
     
     /**
@@ -372,6 +451,7 @@ class KitPlugin extends PluginBase implements Listener
         
         $lv = $this->getLevel($player, $kit) + $level;
         $this->setLevel($player, $kit, $lv);
+        $killer->sendMessage("[KitPlugin]レベルが$level に上がりました!");
         return true;
     }
     
@@ -379,7 +459,8 @@ class KitPlugin extends PluginBase implements Listener
     public function setLevel(Player $player, ?string $kit = null, int $level) {
         $kit = $kit ?? $this->playerdata->getNested($player->getName() . '.now');
         $this->playerdata->setNested($player->getName() . '.level.' . $kit, $level);
-        $player->setXpLevel($level);
+        $this->sendExp($player, $kit);
+        $this->playerdata->save();
     }
     
     /** 経験値を取得 */
@@ -393,27 +474,30 @@ class KitPlugin extends PluginBase implements Listener
         $kit = $kit ?? $this->playerdata->getNested($player->getName() . '.now');
         $lv = $this->playerdata->getNested($player->getName() . '.level.' . $kit, 0);
         $need = 1000 + $lv * 200;
-        if ($need < $exp) {
+        $player->sendMessage('あと' . max($need - $exp, 0) . 'で次のレベルです。');
+        $this->playerdata->setNested($player->getName() . '.exp.' . $kit, $exp);
+        if ($need <= $exp) {
             $this->addLevel($player);
-            $this->setExp($player, $kit, $lv - $need);
+            $this->setExp($player, $kit, $exp - $need);
         }
-        $player->setXpProgress($lv / $need);
+        $this->sendExp($player, $kit);
+        $this->playerdata->save();
     }
     
     /** 経験値を追加 */
     public function addExp(Player $player, ?string $kit = null, int $exp = 0) {
         $kit = $kit ?? $this->playerdata->getNested($player->getName() . '.now');
         $exp = $this->playerdata->getNested($player->getName() . '.exp.' . $kit, 0) + $exp;
-        $this->setExp($player, $exp);
+        $this->setExp($player, $kit, $exp);
     }
 
     public function sendExp(Player $player,?string $kit = null){
         $kit = $kit ?? $this->playerdata->getNested($player->getName() . '.now');
-        $lv = $this->playerdata->getNested($player->getName() . '.level.' . $kit, 0);
+        $lv = $this->playerdata->getNested($player->getName() . '.level.' . $kit, 1);
         $player->setXpLevel($lv);
         $exp = $this->playerdata->getNested($player->getName() . '.exp.' . $kit, 0);
         $need = 1000 + $lv * 200;
-        $player->setXpProgress($exp / $need);
+        $player->setXpProgress(max(min($exp / $need, 1),0));
     }
 
     /** ショップ内での発射禁止 */
@@ -431,7 +515,8 @@ class KitPlugin extends PluginBase implements Listener
     /** リスポーン時にアイテム配布 */
     public function onRespawn(PlayerRespawnEvent $e){
         $player = $e->getPlayer();
-        $this->giveItems($player);
+        $this->setItems($player);
+        $this->sendExp($player);
     }
 
     /** ワールド間テレポートした時 */
@@ -447,17 +532,21 @@ class KitPlugin extends PluginBase implements Listener
         
         if (\in_array($target->getName(), $this->getConfig()->get('gameworlds', []))) {
             // moving into GameWorld
-            $this->giveItems($player);
+            $this->setItems($player);
         }
     }
     
     /** 経験値加算 */
     public function onDeath(PlayerDeathEvent $e) {
+        $e->setKeepExperience(true);
         $victim = $e->getPlayer();
         $lastDamage = $victim->getLastDamageCause();
         if ($lastDamage instanceof EntityDamageByEntityEvent) {
             $killer = $lastDamage->getDamager();
-            $this->addExp($killer, null, 200);
+            if($killer instanceof Player){
+                $killer->sendMessage("[KitPlugin]経験値を200ゲットしました。");
+                $this->addExp($killer, null, 200);
+            }
         }
     }
 }
