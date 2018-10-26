@@ -71,6 +71,7 @@ class KitPlugin extends PluginBase implements Listener
         }
 		// イベントリスナー登録
         $this->getServer()->getPluginManager()->registerEvents($this, $this);
+        // EventListenerは武器関係
         $this->getServer()->getPluginManager()->registerEvents(new EventListener($this), $this);
     }
 
@@ -86,10 +87,10 @@ class KitPlugin extends PluginBase implements Listener
         $player = $e->getPlayer();
         // スニークしてる時はパス
         if($player->isSneaking()) return;
-
+        // ブロック取得
         $block = $e->getBlock();
         switch ($block->getId()) {
-            // 看板のID
+            // 看板の時
             case Block::WALL_SIGN:
             case Block::SIGN_POST:
                 $sign = $block->getLevel()->getTile($block->asPosition());
@@ -116,9 +117,10 @@ class KitPlugin extends PluginBase implements Listener
                 $rank = $this->kit->getNested($kit . '.rank', 0);
                 $cost = $this->kit->getNested($kit . '.cost', 0);
                 // 購入済みか、もしくはランク０
-                if ($this->isPurchased($player, $kit) || $rank === 0){
+                if ($this->isPurchased($player, $kit)){
                     // キット情報の設定
                     $this->setKit($player, $kit);
+                    // $this->purchase($player, $kit);
                     $player->sendMessage($kit . 'になりました');
                 }else{
                     // Kit購入
@@ -126,7 +128,7 @@ class KitPlugin extends PluginBase implements Listener
                 }
                 
                 break;
-
+            //エメラルドブロック
             case Block::EMERALD_BLOCK:
                 // アイテム付与
                 $this->giveItems($player);
@@ -156,7 +158,7 @@ class KitPlugin extends PluginBase implements Listener
                     $rank = $this->kit->getNested($kit . '.rank', 0);
                     $cost = $this->kit->getNested($kit . '.cost', 0);
                     $rankcolor = '§' . [7, 6, 'f', 'e', 'b'][$rank];
-
+                    // lineの変更
                     $sign->setLine(0, '§a[Kit]');
                     $sign->setLine(1, '§l' . $rankcolor . $kit);
                     $sign->setLine(2, '§c$' . $cost);
@@ -186,6 +188,7 @@ class KitPlugin extends PluginBase implements Listener
         if (!empty($lack)) {
             $player->sendMessage($kit . 'を購入できません。');
             foreach ($lack as $kit => $level) {
+                /** @todo Gui化 */
                 if($level < 2){
                     $player->sendMessage($kit . 'が解放されていません。');
                 }else{
