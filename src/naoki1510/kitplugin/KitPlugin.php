@@ -440,14 +440,8 @@ class KitPlugin extends PluginBase implements Listener
      * レベルを取得 
      * @return int|null
      */
-    public function getLevel(Player $player, string $kit) : ?int{
-        $purchased = $this->playerdata->getNested($player->getName() . '.level', []);
-        foreach ($purchased as $pkit => $level) {
-            if ($kit === $pkit) {
-                return $level ?: null;
-            }
-        }
-        return null;
+    public function getLevel(Player $player, string $kit) : int{
+        return $this->playerdata->getNested($player->getName() . '.level.' . $kit, 0);
     }
     
     /** レベルアップ */
@@ -457,7 +451,7 @@ class KitPlugin extends PluginBase implements Listener
         
         $lv = $this->getLevel($player, $kit) + $level;
         $this->setLevel($player, $kit, $lv);
-        $killer->sendMessage("[KitPlugin]レベルが$level に上がりました!");
+        $player->sendMessage("[KitPlugin]レベルが$lv に上がりました!");
         return true;
     }
     
@@ -478,9 +472,9 @@ class KitPlugin extends PluginBase implements Listener
     /** 経験値を設定 **/
     public function setExp(Player $player, ?string $kit = null, int $exp = 0) {
         $kit = $kit ?? $this->playerdata->getNested($player->getName() . '.now');
-        $lv = $this->playerdata->getNested($player->getName() . '.level.' . $kit, 0);
+        $lv = $this->getLevel($player, $kit);
         $need = 1000 + $lv * 200;
-        $player->sendMessage('あと' . max($need - $exp, 0) . 'で次のレベルです。');
+        $player->sendMessage('あと' . max($need - $exp, 0) . 'で次のレベルです。DEBUG:' . $need);
         $this->playerdata->setNested($player->getName() . '.exp.' . $kit, $exp);
         if ($need <= $exp) {
             $this->addLevel($player);
@@ -493,6 +487,7 @@ class KitPlugin extends PluginBase implements Listener
     /** 経験値を追加 */
     public function addExp(Player $player, ?string $kit = null, int $exp = 0) {
         $kit = $kit ?? $this->playerdata->getNested($player->getName() . '.now');
+        $player->sendMessage("[KitPlugin]経験値を$exp ゲットしました。");
         $exp = $this->playerdata->getNested($player->getName() . '.exp.' . $kit, 0) + $exp;
         $this->setExp($player, $kit, $exp);
     }
@@ -510,7 +505,7 @@ class KitPlugin extends PluginBase implements Listener
     public function onLaunchProjectile(PlayerItemUseEvent $e){
         if(!in_array($e->getPlayer()->getLevel()->getName(), $this->getConfig()->get('shopworlds', []))) return;
         $e->setCancelled();
-        $e->getPlayer()->sendMessage("ここではアイテムは使えません。" . $e->getPlayer()->getLevel()->getName());
+        //$e->getPlayer()->sendMessage("ここではアイテムは使えません。" . $e->getPlayer()->getLevel()->getName());
     }
 
     /** ショップでのドロップ禁止 */
@@ -550,7 +545,6 @@ class KitPlugin extends PluginBase implements Listener
         if ($lastDamage instanceof EntityDamageByEntityEvent) {
             $killer = $lastDamage->getDamager();
             if($killer instanceof Player){
-                $killer->sendMessage("[KitPlugin]経験値を200ゲットしました。");
                 $this->addExp($killer, null, 200);
             }
         }
