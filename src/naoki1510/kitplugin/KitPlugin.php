@@ -43,6 +43,7 @@ use pocketmine\network\mcpe\protocol\ModalFormResponsePacket;
 use pocketmine\plugin\PluginBase;
 use pocketmine\tile\Sign;
 use pocketmine\utils\Config;
+use pocketmine\utils\TextFormat;
 
 
 class KitPlugin extends PluginBase implements Listener
@@ -115,8 +116,8 @@ class KitPlugin extends PluginBase implements Listener
                 } 
                 // ランク、コストをConfigから取得
                 $rank = $this->kit->getNested($kit . '.rank', 0);
-                $cost = $this->kit->getNested($kit . '.cost', 0);
-                // 購入済みか、もしくはランク０
+                //$cost = $this->kit->getNested($kit . '.cost', 0);
+                // 購入済み
                 if ($this->isPurchased($player, $kit)){
                     // キット情報の設定
                     $this->setKit($player, $kit);
@@ -180,37 +181,54 @@ class KitPlugin extends PluginBase implements Listener
         // キットの条件を満たしているか
         $required = $this->kit->getNested($kit . '.required', []);
         $lack = [];
-        foreach ($required as $kit => $level) {
-            if ($level > $this->getLevel($player, $kit)) {
-                $lack[$kit] = $level;
+        foreach ($required as $kitname => $level) {
+            if ($level > $this->getLevel($player, $kitname)) {
+                $lack[$kitname] = $level;
             }
         }
         if (!empty($lack)) {
-            $player->sendMessage($kit . 'を購入できません。');
-            foreach ($lack as $kit => $level) {
-                /** @todo Gui化 */
-                if($level < 2){
-                    $player->sendMessage($kit . 'が解放されていません。');
-                }else{
-                    $player->sendMessage($kit . 'のレベルが' . $level . 'に達していません。');
-                }
-            }
+            //$player->sendMessage($kit . 'を購入できません。');
+            if (!empty($this->cue[$player->getName()])) return false;
+            $info = '';
+            $this->cue[$player->getName()] = $kit;
+            $info .= $this->getKitInfo($kit, $player);
+            $pk = new ModalFormRequestPacket();
+            $pk->formId = 229028;
+            $form['title'] = TextFormat::RED . TextFormat::BOLD . 'Level isn\'t enough.';
+            $form['type'] = 'form';
+            $form['content'] = $info;
+            $form['buttons'] = [['text' => 'OK']];
+            $pk->formData = json_encode($form);
+            $player->dataPacket($pk);
             return false;
         }
         // お金が足りるか
         if ((EconomyAPI::getInstance()->myMoney($player) ?? 0) < $cost) {
-            $player->sendMessage('お金が足りません。');
+            //$player->sendMessage('お金が足りません。');
+            if (!empty($this->cue[$player->getName()])) return false;
+            $this->cue[$player->getName()] = $kit;
+            $info = $this->getKitInfo($kit, $player);
+            $pk = new ModalFormRequestPacket();
+            $pk->formId = 229028;
+            $form['title'] = TextFormat::RED . TextFormat::BOLD . 'You don\'t have enough money' . $kit;
+            $form['type'] = 'form';
+            $form['content'] = $info;
+            $form['buttons'] = [['text' => 'OK']];
+            
+            $pk->formData = json_encode($form);
+            $player->dataPacket($pk);
             return false;
         }
         // キューが空の時
         if (empty($this->cue[$player->getName()])) {
             $this->cue[$player->getName()] = $kit;
+            $info = $this->getKitInfo($kit, $player);
             //購入確認フォーム
             $pk = new ModalFormRequestPacket();
             $pk->formId = 229028;
-            $form['title'] = $kit . 'を購入しますか？';
+            $form['title'] = 'Would you like to buy' . $kit;
             $form['type'] = 'modal';
-            $form['content'] = $kit . PHP_EOL . '§6$' . $cost . "\n§rRank§l: " . ['§fNormal', '§6Bronze', '§fSilver', '§eGold', '§bPlatinum'][$rank];
+            $form['content'] = $info;
             $form['button1'] = 'Yes';
             $form['button2'] = 'No';
             $pk->formData = json_encode($form);
@@ -233,10 +251,10 @@ class KitPlugin extends PluginBase implements Listener
         if ($pk->formId !== 229028) return;
         
         $data = json_decode($pk->formData, true);
-        if($data === null) return;
+        var_dump($data);
         switch ($data) {
             case 0: 
-                $player->sendMessage("購入をキャンセルしました。");
+                //$player->sendMessage("購入をキャンセルしました。");
                 break;
 
             case 1:
@@ -261,6 +279,8 @@ class KitPlugin extends PluginBase implements Listener
 
     /**
      * アイテムを与える
+     * 
+     * @todo giveItemsを使ってコード短縮
      */
     public function setItems(Player $player, string $kit = null) : bool
     {
@@ -404,6 +424,56 @@ class KitPlugin extends PluginBase implements Listener
         return true;
     }
 
+    /**
+     * @todo custom_formで使える形にする
+     */
+    public function getKitInfo(string $kit, Player $player = null) : string{
+        $info = 'Kit : ' . TextFormat::BOLD . $kit . TextFormat::RESET . PHP_EOL;
+        $info .= 'Cost: ' . TextFormat::GOLD . EconomyAPI::getInstance()->getMonetaryUnit() . $this->kit->getNested($kit . '.cost', 0) . TextFormat::RESET . PHP_EOL;
+        $rank =  $this->kit->getNested($kit . 'rank', 0);
+        $info .= 'Rank : ' . '§' . [7, 6, 'f', 'e', 'b'][$rank] . ['Normal', 'Bronze', 'Silver', 'Gold', 'Platinum'][$rank] . TextFormat::RESET . PHP_EOL;
+        $info .= '-- ' . TextFormat::GREEN . 'Items' . TextFormat::RESET . ' --' . TextFormat::RESET . PHP_EOL;
+        foreach ($this->kit->getNested($kit . '.items', []) as $item) {
+            $info .= Item::fromString($item['name'])->getName() . TextFormat::RESET . ' : ' . TextFormat::AQUA . ($item['count'] ?? 0) . TextFormat::RESET . PHP_EOL;
+            if (isset($item['enchantments'])) {
+                foreach ($item['enchantments'] as $enchant) {
+                    $info .= "  " . Enchantment::getEnchantment($enchant['id'] ?? 0)->getName() . TextFormat::RESET . ': ' . TextFormat::AQUA . $enchant['level'] . TextFormat::RESET . PHP_EOL;
+                }
+            }
+        }
+        $info .= '-- ' . TextFormat::GREEN . 'Armor' . TextFormat::RESET . ' --' . TextFormat::RESET . PHP_EOL;
+        foreach ($this->kit->getNested($kit . '.armor', []) as $slot => $armor) {
+            $info .= $slot . ': ' . TextFormat::AQUA . Item::fromString($armor['name'])->getName() . TextFormat::RESET . PHP_EOL;
+            if (isset($armor['enchantments'])) {
+                foreach ($armor['enchantments'] as $enchant) {
+                    $info .= "  " . Enchantment::getEnchantment($enchant['id'] ?? 0)->getName() . TextFormat::RESET . ': ' . TextFormat::AQUA . $enchant['level'] . TextFormat::RESET . PHP_EOL;
+                }
+            }
+        }
+        $info .= $this->kit->getNested($kit . '.effects', null) ? '-- ' . TextFormat::GREEN . 'Effects' . TextFormat::RESET . ' --' . TextFormat::RESET . PHP_EOL : '';
+        foreach ($this->kit->getNested($kit . '.effects', []) as $effect) {
+            $info .= Effect::getEffect($effect['id'])->getName() . TextFormat::RESET . ' : ' . TextFormat::AQUA . '強さ' . $effect['amplification'] ?? $effect['amp'] ?? 0 . '' . TextFormat::RESET . PHP_EOL;
+        }
+        $info .= $this->kit->getNested($kit . '.required', null) ? '-- ' . TextFormat::GREEN . 'Required' . TextFormat::RESET . ' --' . TextFormat::RESET . PHP_EOL : '';
+        foreach ($this->kit->getNested($kit . '.required', []) as $kitname => $level) {
+            if ($level > $this->getLevel($player, $kitname)) {
+                $info .= $kitname . TextFormat::RESET . ' : ' . TextFormat::RED . $level . TextFormat::RESET;
+                if($player instanceof Player){
+                    $info .= ' (now: ' . TextFormat::RED . $this->getLevel($player, $kitname) . TextFormat::RESET . ')';
+                }
+                $info .= PHP_EOL;
+            }else{
+                $info .= $kitname . TextFormat::RESET . ' : ' . TextFormat::AQUA . $level . TextFormat::RESET;// . TextFormat::RESET . '(' . TextFormat::AQUA . $this->getLevel($player) . TextFormat::RESET . ')' . PHP_EOL;
+                if ($player instanceof Player) {
+                    $info .= ' (now: ' . TextFormat::AQUA . $this->getLevel($player, $kitname) . TextFormat::RESET . ')';
+                }
+                $info .= PHP_EOL;
+            }
+        }
+
+        return $info;
+    }
+
     /** 
      * キットを設定 
      */
@@ -437,8 +507,9 @@ class KitPlugin extends PluginBase implements Listener
      * レベルを取得 
      * @return int|null
      */
-    public function getLevel(Player $player, string $kit) : int{
-        return $this->playerdata->getNested($player->getName() . '.level.' . $kit, 0);
+    public function getLevel(Player $player, string $kit = null) : int{
+        $kit = $kit ?? $this->getKit($player);
+        return intval($this->playerdata->getNested($player->getName() . '.level.' . $kit, 0));
     }
     
     /** レベルアップ */
@@ -448,7 +519,7 @@ class KitPlugin extends PluginBase implements Listener
         
         $lv = $this->getLevel($player, $kit) + $level;
         $this->setLevel($player, $kit, $lv);
-        $player->sendMessage("[KitPlugin]レベルが$lv に上がりました!");
+        $player->sendMessage(TextFormat::BOLD . "[KitPlugin]レベルが$lv に上がりました!");
         return true;
     }
     
@@ -471,7 +542,7 @@ class KitPlugin extends PluginBase implements Listener
         $kit = $kit ?? $this->playerdata->getNested($player->getName() . '.now');
         $lv = $this->getLevel($player, $kit);
         $need = 1000 + $lv * 200;
-        $player->sendMessage('あと' . max($need - $exp, 0) . 'で次のレベルです。DEBUG:' . $need);
+        $player->sendMessage(TextFormat::BOLD . 'あと' . max($need - $exp, 0) . 'で次のレベルです。');
         $this->playerdata->setNested($player->getName() . '.exp.' . $kit, $exp);
         if ($need <= $exp) {
             $this->addLevel($player);
@@ -484,7 +555,7 @@ class KitPlugin extends PluginBase implements Listener
     /** 経験値を追加 */
     public function addExp(Player $player, ?string $kit = null, int $exp = 0) {
         $kit = $kit ?? $this->playerdata->getNested($player->getName() . '.now');
-        $player->sendMessage("[KitPlugin]経験値を$exp ゲットしました。");
+        $player->sendMessage(TextFormat::BOLD . "[KitPlugin]経験値を$exp ゲットしました。");
         $exp = $this->playerdata->getNested($player->getName() . '.exp.' . $kit, 0) + $exp;
         $this->setExp($player, $kit, $exp);
     }
@@ -498,8 +569,13 @@ class KitPlugin extends PluginBase implements Listener
         $player->setXpProgress(max(min($exp / $need, 1),0));
     }
 
+    public function getKit(Player $player)
+    {
+        return $this->playerdata->getNested($player->getName() . '.now');
+    }
+
     /** ショップ内での発射禁止 */
-    public function onLaunchProjectile(PlayerItemUseEvent $e){
+    public function onUseItem(PlayerItemUseEvent $e){
         if(!in_array($e->getPlayer()->getLevel()->getName(), $this->getConfig()->get('shopworlds', []))) return;
         $e->setCancelled();
         //$e->getPlayer()->sendMessage("ここではアイテムは使えません。" . $e->getPlayer()->getLevel()->getName());
