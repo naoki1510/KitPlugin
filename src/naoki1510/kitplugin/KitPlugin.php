@@ -436,6 +436,8 @@ class KitPlugin extends PluginBase implements Listener
         }
     }
     
+    /* レベルシステム */
+    
     /** 
      * レベルを取得 
      * @return int|null
