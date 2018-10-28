@@ -110,7 +110,8 @@ class KitPlugin extends PluginBase implements Listener
                     continue;
                 }
                 // すでにその職の時はパス
-                if ($this->playerdata->getNested($player->getName() . '.now', '') === $kit){
+                // @todo ffaをコンフィグラブルに
+                if ($this->playerdata->getNested($player->getName() . '.now', '') === $kit || $player->getLevel()->getName() === 'ffa'){
                     $this->setKit($player, $kit);
                     continue;
                 } 
@@ -189,6 +190,8 @@ class KitPlugin extends PluginBase implements Listener
                 $lack[$kitname] = $level;
             }
         }
+        // @todo フォームの送信コードを短縮
+        // @todo typeをformに統一して、formIDで分ける
         if (!empty($lack)) {
             //$player->sendMessage($kit . 'を購入できません。');
             if (!empty($this->cue[$player->getName()])) return false;
