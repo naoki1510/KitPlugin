@@ -141,6 +141,9 @@ class KitPlugin extends PluginBase implements Listener
         }
         // ブロック配置の防止
         $e->setCancelled();
+        
+        // @todo エメラルドで回復
+        
     }
 
     public function onSignChange(SignChangeEvent $e){
