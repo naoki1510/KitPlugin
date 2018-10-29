@@ -9,10 +9,11 @@ use pocketmine\level\Level;
 use pocketmine\level\Position;
 use pocketmine\scheduler\Task;
 use pocketmine\utils\Config;
+use naoki1510\kitplugin\KitPlugin;
 
 class RestoreItemTask extends Task
 {
-    /** @var Item */
+    /** @var KitPlugin */
     public $item;
 
     /** @var Player */
@@ -24,7 +25,7 @@ class RestoreItemTask extends Task
     /** @var string */
     public $message;
 
-    public function __construct(Item $item, Player $player, Int $max = null, string $message = null)
+    public function __construct(KitPlugin $plugin, Player $player, string $kit)
     {
         $this->item = $item;
         $this->player = $player;

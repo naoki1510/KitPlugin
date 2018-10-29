@@ -25,7 +25,7 @@ class EventListener implements Listener
 {
     /** @var Config */
     public $kit;
-    public $playerdata;
+    public $data;
     public $config;
     public $overlapping;
 
@@ -44,7 +44,7 @@ class EventListener implements Listener
         $this->scheduler = $kitPlugin->getScheduler();
         $this->levels = $kitPlugin->getConfig()->get('gameworlds', []);
         $this->kit = $kitPlugin->kit;
-        $this->playerdata = $kitPlugin->playerdata;
+        $this->data = $kitPlugin->data;
         $this->overlapping = new Config($kitPlugin->getDataFolder() . 'ov.yml', Config::YAML);
     }
 
