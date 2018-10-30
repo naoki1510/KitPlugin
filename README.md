@@ -33,7 +33,7 @@
                 }
             ]
         },
-        "reggings": {
+        "leggings": {
             "name": "id or name",
             "enchantments": [
                 {
