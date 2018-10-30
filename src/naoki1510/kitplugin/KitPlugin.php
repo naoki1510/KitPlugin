@@ -5,11 +5,6 @@ namespace naoki1510\kitplugin;
 /** @todo remove not to use. */
 use naoki1510\kitplugin\EventListener;
 use naoki1510\kitplugin\KitPlugin;
-use naoki1510\kitplugin\mainweapons\BowWeapon;
-use naoki1510\kitplugin\mainweapons\SnowBallWeapon;
-use naoki1510\kitplugin\subweapons\Bom;
-use naoki1510\kitplugin\subweapons\PotionWeapon;
-use naoki1510\kitplugin\subweapons\Shield;
 use naoki1510\kitplugin\tasks\BlockRecoveryTask;
 use onebone\economyapi\EconomyAPI;
 use pocketmine\Player;
@@ -49,9 +44,9 @@ use pocketmine\lang\Language;
 
 class KitPlugin extends PluginBase implements Listener
 {
-    public const FORM_BUY = INT32_MAX - 1519;
-    public const FORM_CHANGE = INT32_MAX - 1511;
-    public const FORM_CANT_BUY = INT32_MAX - 1512;
+    public const FORM_BUY = INT32_MAX - 1511;
+    public const FORM_CHANGE = INT32_MAX - 1512;
+    public const FORM_CANT_BUY = INT32_MAX - 1513;
 
     /** @var Config */
     public $kit;
@@ -84,7 +79,7 @@ class KitPlugin extends PluginBase implements Listener
 
     public function onDisable()
     {
-        $this->data->save();
+        //$this->data->save();
     }
     
     /* 購入処理系 */
@@ -373,7 +368,7 @@ class KitPlugin extends PluginBase implements Listener
         }
         // エフェクト
         $player->removeAllEffects();
-        foreach ($data['effects'] ?? [] as $slot => $effectInfo) {
+        foreach ($data['effects'] ?? [] as $effectInfo) {
             $effect = Effect::getEffect($effectInfo['id'] ?? 1);
             $player->addEffect(new EffectInstance($effect, $effectInfo['duration'] ?? 2147483647, $effectInfo['amplification'] ?? $effectInfo['amp'] ?? 0, $effectInfo['visible'] ?? false));
         }
