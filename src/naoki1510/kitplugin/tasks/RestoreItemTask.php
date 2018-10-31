@@ -13,7 +13,7 @@ use naoki1510\kitplugin\KitPlugin;
 
 class RestoreItemTask extends Task
 {
-    /** @var KitPlugin */
+    /** @var Item */
     public $item;
 
     /** @var Player */
@@ -25,7 +25,7 @@ class RestoreItemTask extends Task
     /** @var string */
     public $message;
 
-    public function __construct(KitPlugin $plugin, Player $player, string $kit)
+    public function __construct(Item $item, Player $player, int $max = null, string $message = null)
     {
         $this->item = $item;
         $this->player = $player;

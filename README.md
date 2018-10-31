@@ -1,12 +1,68 @@
 # KitPlugin
-## kit.ymlの書式
+## kit.jsonの書式
 ```
-[KIT_NAME]: 
-    [ITEM_ID:META or ITEM_STRING] : [AMOUNT]
-
+"name": {
+    "items": [
+        {
+            "name": "id or name",
+            "count": "amount",
+            "enchantments": [
+                {
+                    "id": "id",
+                    "level": "level"
+                }
+            ]
+        }
+    ],
+    "armor": {
+        "helmet": {
+            "name": "id or name",
+            "enchantments": [
+                {
+                    "id": "id",
+                    "level": "level"
+                }
+            ]
+        },
+        "chestplate": {
+            "name": "id or name",
+            "enchantments": [
+                {
+                    "id": "id",
+                    "level": "level"
+                }
+            ]
+        },
+        "leggings": {
+            "name": "id or name",
+            "enchantments": [
+                {
+                    "id": "id",
+                    "level": "level"
+                }
+            ]
+        },
+        "boots": {
+            "name": "id or name",
+            "enchantments": [
+                {
+                    "id": "id",
+                    "level": "level"
+                }
+            ]
+        }
+    },
+    "effects": [
+        {
+            "id": "id",
+            "amplification": "amplification",
+            "amp": "alias of amplification"
+        }
+    ]
+}
 ```
 ## 看板の書式
 ```
 [Kit]
-[KIT_NAME]
+KIT_NAME
 ```
