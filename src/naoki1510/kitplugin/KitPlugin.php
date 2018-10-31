@@ -29,6 +29,7 @@ use pocketmine\event\player\PlayerDeathEvent;
 use pocketmine\event\player\PlayerDropItemEvent;
 use pocketmine\event\player\PlayerInteractEvent;
 use pocketmine\event\player\PlayerItemUseEvent;
+use pocketmine\event\player\PlayerMoveEvent;
 use pocketmine\event\player\PlayerRespawnEvent;
 use pocketmine\event\server\DataPacketReceiveEvent;
 use pocketmine\item\Armor;
@@ -37,14 +38,15 @@ use pocketmine\item\Item;
 use pocketmine\item\Sword;
 use pocketmine\item\enchantment\Enchantment;
 use pocketmine\item\enchantment\EnchantmentInstance;
+use pocketmine\lang\Language;
 use pocketmine\level\Explosion;
+use pocketmine\level\Level;
 use pocketmine\network\mcpe\protocol\ModalFormRequestPacket;
 use pocketmine\network\mcpe\protocol\ModalFormResponsePacket;
 use pocketmine\plugin\PluginBase;
 use pocketmine\tile\Sign;
 use pocketmine\utils\Config;
 use pocketmine\utils\TextFormat;
-use pocketmine\lang\Language;
 
 
 class KitPlugin extends PluginBase implements Listener
@@ -116,8 +118,8 @@ class KitPlugin extends PluginBase implements Listener
                     continue;
                 }
                 if(empty($this->cue[$player->getName()])){
-                    $this->sendForm($player, $kit);
                     $this->cue[$player->getName()] = $kit;
+                    $this->sendForm($player, $kit);
                 }
                 break;
             //エメラルドブロック
@@ -240,68 +242,6 @@ class KitPlugin extends PluginBase implements Listener
 
         $player->getInventory()->clearAll();
         return $this->giveItems($player, $kit);
-
-        // こっからしたいらない
-
-        $data = $this->kit->get($kit);
-        $items = [];
-        // アイテム
-        foreach ($data['items'] as $itemInfo) {
-            try{
-                $item = Item::fromString($itemInfo['name']);
-                $count = $itemInfo['count'] ?? 1;
-
-                /** @var Item $item */
-                if (isset($itemInfo['enchantments'])) {
-                    $enchantments = $itemInfo['enchantments'];
-                    foreach ($enchantments as $enchdata) {
-                        $ench = Enchantment::getEnchantment($enchdata['id'] ?? 0);
-                        $item->addEnchantment(new EnchantmentInstance($ench, $enchdata['level'] ?? 1));
-                    }
-                }
-                // 1スタックの量を超える時
-                while ($count > $item->getMaxStackSize()) {
-                    array_push($items, clone $item->setCount($item->getMaxStackSize()));
-                    $count -= $item->getMaxStackSize();
-                }
-                array_push($items, $item->setCount($count));
-            }catch(\InvalidArgumentException $e){
-                $this->getLogger()->warning($e->getMessage());
-            }
-        }
-        //アイテムをセット
-        $player->getInventory()->setContents($items);
-        // 装備
-        foreach ($data['armor'] as $slot => $armorInfo) {
-            try {
-                $item = Item::fromString($armorInfo['name']);
-                /** @var Item $item */
-                if (isset($armorInfo['enchantment'])) {
-                    $enchantments = $armorInfo['enchantment'];
-                    foreach ($enchantments as $enchdata) {
-                        $ench = Enchantment::getEnchantment($enchdata['id'] ?? 0);
-                        $item->addEnchantment(new EnchantmentInstance($ench, $enchdata['level'] ?? 1));
-                    }
-                }
-                try{
-                    $slot = $item->getArmorSlot();
-                    $player->getArmorInventory()->setItem($slot, $item);
-                }catch(\BadMethodCallException $e){
-                    // getArmorSlotに失敗した時
-                    $this->getLogger()->warning($e->getMessage());
-                }
-            } catch (\InvalidArgumentException $e) {
-                // アイテムの取得に失敗した時
-                $this->getLogger()->warning($e->getMessage());
-            }
-        }
-        // エフェクト
-        $player->removeAllEffects();
-        foreach ($data['effects'] ?? [] as $slot => $effectInfo) {
-            $effect = Effect::getEffect($effectInfo['id'] ?? 1);
-            $player->addEffect(new EffectInstance($effect, $effectInfo['duration'] ?? 2147483647, $effectInfo['amplification'] ?? $effectInfo['amp'] ?? 0, $effectInfo['visible'] ?? false));
-        }
-        return true;
     }
 
 
@@ -441,7 +381,7 @@ class KitPlugin extends PluginBase implements Listener
         $pk = new ModalFormRequestPacket();
         $form['type'] = 'form';
         $form['content'] = implode(TextFormat::RESET . PHP_EOL, $info). PHP_EOL . PHP_EOL;
-        if($this->isPurchased($player, $kit)){
+        if($this->isPurchased($player, $kit) or $this->isTryWorld($player->getLevel())){
             $pk->formId = self::FORM_CHANGE;
             $title = 'Kitを変更しますか？';
             $form['buttons'][] = ['text' => 'Change'];
@@ -467,7 +407,11 @@ class KitPlugin extends PluginBase implements Listener
     public function setKit(Player $player, string $kit) : bool
     {
         if (!$this->kit->exists($kit)) return false;
-        $this->data->setNested($player->getName() . '.now', $kit);
+        if($this->isTryWorld($player->getLevel())){
+            $this->data->setNested($player->getName() . '.try', $kit);
+        }else{
+            $this->data->setNested($player->getName() . '.now', $kit);
+        }
         $this->data->save();
         $this->levelapi->sendExp($player, $kit);
         // アイテム付与
@@ -494,7 +438,11 @@ class KitPlugin extends PluginBase implements Listener
 
     public function getKit(Player $player)
     {
-        return $this->data->getNested($player->getName() . '.now');
+        if($this->isTryWorld($player->getLevel())){
+            return $this->data->getNested($player->getName() . '.try');
+        }else{
+            return $this->data->getNested($player->getName() . '.now');
+        }
     }
 
     public function getCost(string $kit) : int
@@ -510,6 +458,10 @@ class KitPlugin extends PluginBase implements Listener
         $rank = $this->kit->getNested($kit . '.rank', 0);
         if (strtolower($type) === 'int') return $rank;
         return [TextFormat::GRAY, TextFormat::GOLD, TextFormat::WHITE, TextFormat::YELLOW, TextFormat::AQUA][$rank] . ['Normal', 'Bronze', 'Silver', 'Gold', 'Platinum'][$rank];
+    }
+
+    public function isTryWorld(Level $level) : bool{
+        return in_array($level->getName(), $this->getConfig()->get('world_try', ['ffa']));
     }
 
     /**
@@ -676,6 +628,12 @@ class KitPlugin extends PluginBase implements Listener
             $this->setItems($player);
         }
     }
+
+    public function onMove(PlayerMoveEvent $e){
+        if(!empty($this->cue[$e->getPlayer()->getName()])){
+            $this->cue[$e->getPlayer()->getName()] = null;
+        }
+    }
     
     /** 経験値加算 */
     public function onDeath(PlayerDeathEvent $e) {
@@ -691,6 +649,7 @@ class KitPlugin extends PluginBase implements Listener
     }
 
     public function addExp(Player $player, ? string $kit = null, int $exp = 0){
+        if($this->isTryWorld($player->getLevel())) return;
         $this->levelapi->addExp($player, $kit ?? $this->getKit($player), $exp);
     }
 }
